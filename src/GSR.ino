@@ -78,15 +78,13 @@ class OverrideGSR : public WatchyGSR {
             
             display.setFont(&aAntiCorona11pt7b);
             display.setCursor(10, 70);
-            display.print("Name: Jane Doe");
+            display.print("Name: Endre Domiczi");
             display.setCursor(10, 100);
-            display.print("ICE: 555-123-4567");
+            display.print("ID: 35307050015");
             display.setCursor(10, 130);
-            display.print("Allergies: Penicillin");
+            display.print("Allergies: None");
             display.setCursor(10, 160);
-            display.print("Meds: Aspirin daily");
-            display.setCursor(10, 190);
-            display.print("Blood Type: O-");
+            display.print("Birth: 1953.07.05");
         } else if (callingForHelp) {
             display.fillScreen(BackColor());
             display.setFont(&aAntiCorona16pt7b);
