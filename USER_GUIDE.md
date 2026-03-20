@@ -14,7 +14,7 @@ Here is how they generally operate within the Watchy GSR framework:
 
 ### **SW3: Up (Top-Right Button)**
 *   **Inside the Menu:** Navigates up through the menu items.
-*   **From the Watch Face:** Can be programmed to trigger a custom feature (e.g., showing a specific screen).
+*   **From the Watch Face:** Toggles the **Medical Info** screen, displaying emergency contact details and medical information.
 
 ### **SW4: Down (Bottom-Right Button)**
 *   **Inside the Menu:** Navigates down through the menu items.
