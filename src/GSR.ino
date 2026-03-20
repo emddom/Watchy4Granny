@@ -21,6 +21,7 @@ RTC_DATA_ATTR bool callingForHelp = false;
 RTC_DATA_ATTR bool helpRequested = false;
 RTC_DATA_ATTR bool wifiFailed = false;
 RTC_DATA_ATTR bool showingMedInfo = false;
+RTC_DATA_ATTR bool showingBattery = false;
 
 class OverrideGSR : public WatchyGSR {
   public:
@@ -56,10 +57,11 @@ class OverrideGSR : public WatchyGSR {
 
     void InsertOnMinute() override {
       // Clear the messages when the minute changes so the normal clock returns
-      if (helpRequested || wifiFailed || showingMedInfo) {
+      if (helpRequested || wifiFailed || showingMedInfo || showingBattery) {
          helpRequested = false;
          wifiFailed = false;
          showingMedInfo = false;
+         showingBattery = false;
          UpdateScreen();
       }
     }
@@ -69,7 +71,36 @@ class OverrideGSR : public WatchyGSR {
         WatchyGSR::drawWatchFace();
         
         // Overlay our custom screens based on state
-        if (showingMedInfo) {
+        if (showingBattery) {
+            display.fillScreen(BackColor());
+            display.setFont(&aAntiCorona16pt7b);
+            display.setTextColor(ForeColor());
+            
+            String title = "BATTERY";
+            int16_t x1, y1;
+            uint16_t w, h;
+            
+            display.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
+            display.setCursor((200 - w) / 2, 50);
+            display.print(title);
+            
+            float voltage = getBatteryVoltage();
+            int percentage = (voltage - 3.6) / 0.6 * 100;
+            if (percentage > 100) percentage = 100;
+            if (percentage < 0) percentage = 0;
+            
+            String line1 = String(voltage, 2) + "V";
+            String line2 = String(percentage) + "%";
+            
+            display.getTextBounds(line1, 0, 0, &x1, &y1, &w, &h);
+            display.setCursor((200 - w) / 2, 100);
+            display.print(line1);
+
+            display.getTextBounds(line2, 0, 0, &x1, &y1, &w, &h);
+            display.setCursor((200 - w) / 2, 140);
+            display.print(line2);
+            
+        } else if (showingMedInfo) {
             display.fillScreen(BackColor());
             display.setFont(&aAntiCorona16pt7b);
             display.setTextColor(ForeColor());
@@ -131,19 +162,28 @@ class OverrideGSR : public WatchyGSR {
     }
 
     bool InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) override {
-      if (showingMedInfo || callingForHelp || helpRequested || wifiFailed) {
+      if (showingMedInfo || callingForHelp || helpRequested || wifiFailed || showingBattery) {
           if (SwitchNumber == 2) { // Back / SW2
               showingMedInfo = false;
+              if (callingForHelp) {
+                  endWiFi();
+              }
               callingForHelp = false;
               helpRequested = false;
               wifiFailed = false;
+              showingBattery = false;
               Haptic = true;
               Refresh = true;
               return true; // We handled the button press
           }
       }
       
-      if (SwitchNumber == 3) { // Up / SW3
+      if (SwitchNumber == 2) { // Back / SW2 (from watch face)
+          showingBattery = !showingBattery;
+          Haptic = true;
+          Refresh = true;
+          return true;
+      } else if (SwitchNumber == 3) { // Up / SW3
           showingMedInfo = !showingMedInfo; // Toggle med info
           Haptic = true;
           Refresh = true;

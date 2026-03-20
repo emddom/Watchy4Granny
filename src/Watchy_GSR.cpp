@@ -332,8 +332,8 @@ void WatchyGSR::setupDefaults(){
     Options.Lefty = false;
     Options.Swapped = false;
     Options.Turbo = 3;
-    Options.SleepStyle = 0; // 0 = Off
-    Options.SleepMode = 0; // Set to 0 to disable sleep mode completely
+    Options.SleepStyle = 0;
+    Options.SleepMode = 3;
     Options.SleepStart = 23;
     Options.SleepEnd = 7;
     Options.MasterRepeats = 0;  // 100%.
@@ -503,7 +503,7 @@ void WatchyGSR::init(String datetime){
             }else if (Button == 10 && !WatchTime.BedTime){  // Wrist.
                 DisplayWake(); // Do this anyways, always.
             }else if (Button){
-                DisplayWake(); LastButton = millis(); Button = 0; // Update Screen to new state. if (Options.SleepStyle > 1 && B) 
+                DisplayWake(); LastButton = millis(); // Button = 0; removed to make buttons responsive instantly from sleep
             }
         }
         if (Darkness.Woke || Button) UpdateClock();  // Make sure this is done when buttons are pressed for a wakeup.
@@ -4690,8 +4690,6 @@ void WatchyGSR::RetrieveSettings(){
         StoreSettings(S);
     }
     Options.NeedsSaving = false;
-    Options.SleepStyle = 0; // Force Sleep Mode OFF (Make Responsive)
-    Options.SleepMode = 0;
 }
 
 void WatchyGSR::RecordSettings(){

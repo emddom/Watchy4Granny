@@ -10,7 +10,7 @@ Here is how they generally operate within the Watchy GSR framework:
 
 ### **SW2: Back / Cancel (Top-Left Button)**
 *   **Inside the Menu:** Goes back to the previous menu or returns to the watch face.
-*   **From the Watch Face:** Depending on the setup, it can wake up the screen or trigger a specific watch face action.
+*   **From the Watch Face:** Toggles the **Battery Status** screen or backs out of other custom screens.
 
 ### **SW3: Up (Top-Right Button)**
 *   **Inside the Menu:** Navigates up through the menu items.
