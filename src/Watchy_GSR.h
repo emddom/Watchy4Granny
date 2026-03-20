@@ -31,6 +31,8 @@
 #include "Fonts_GSR.h"
 #include "Icons_GSR.h"
 #include "ArduinoNvs.h"
+#include "PowerStateMachine.h"
+#include "UiStateMachine.h"
 
 class WatchyGSR{
     public:
@@ -51,7 +53,6 @@ class WatchyGSR{
         virtual void drawDay();
         virtual void drawDate(bool Short = false);  // Short month can be used.
         virtual void drawYear();
-        virtual void handleButtonPress(uint8_t Pressed) final;
         virtual void deepSleep() final;
         static float getBatteryVoltage();
         virtual bool IsDark() final;
@@ -60,7 +61,6 @@ class WatchyGSR{
         virtual bool Is24HourMode() final;
         virtual bool IsLightMode() final;
         virtual String GetLangWebID() final;
-        virtual void CheckButtons() final;
         static uint8_t getButtonPins();
         void drawChargeMe(bool Dark = false);
         void drawStatus(bool Dark = false);
@@ -168,6 +168,9 @@ class WatchyGSR{
         virtual void setFontColor(uint16_t Color) final;
         virtual tmElements_t UTCtoLocal(time_t Incoming) final;
         virtual time_t getISO8601(String inTime) final;
+        virtual void handleMenuButton(uint8_t button);
+        virtual void tick();
+        virtual void CheckButtons();
    private:
         void setStatus(String Status);
         void drawMenu();
@@ -361,4 +364,6 @@ extern TimeData WatchTime;
 extern StableBMA SBMA;
 #endif
 extern LocaleGSR LGSR;
+extern volatile uint8_t Button;
+extern volatile uint8_t Missed;
 #endif
