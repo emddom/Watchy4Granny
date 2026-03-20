@@ -332,8 +332,8 @@ void WatchyGSR::setupDefaults(){
     Options.Lefty = false;
     Options.Swapped = false;
     Options.Turbo = 3;
-    Options.SleepStyle = 0;
-    Options.SleepMode = 3;
+    Options.SleepStyle = 0; // 0 = Off
+    Options.SleepMode = 0; // Set to 0 to disable sleep mode completely
     Options.SleepStart = 23;
     Options.SleepEnd = 7;
     Options.MasterRepeats = 0;  // 100%.
@@ -4690,6 +4690,8 @@ void WatchyGSR::RetrieveSettings(){
         StoreSettings(S);
     }
     Options.NeedsSaving = false;
+    Options.SleepStyle = 0; // Force Sleep Mode OFF (Make Responsive)
+    Options.SleepMode = 0;
 }
 
 void WatchyGSR::RecordSettings(){
