@@ -18,7 +18,7 @@ Here is how they generally operate within the Watchy GSR framework:
 
 ### **SW4: Down (Bottom-Right Button)**
 *   **Inside the Menu:** Navigates down through the menu items.
-*   **From the Watch Face:** Can be programmed to trigger a custom feature.
+*   **From the Watch Face:** Triggers the **Find My Phone** feature. The watch will connect to WiFi and ping your phone via an IFTTT webhook.
 
 ---
 
