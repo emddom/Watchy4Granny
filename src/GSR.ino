@@ -1,4 +1,7 @@
 #include "Watchy_GSR.h"
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+
 #if __has_include("GSRWatchFaceBallsy.h")
 #include "GSRWatchFaceBallsy.h"
 #endif
@@ -14,146 +17,95 @@
 
 // Place all of your data and variables here.
 
-//RTC_DATA_ATTR uint8_t MyStyle;  // Remember RTC_DATA_ATTR for your variables so they don't get wiped on deep sleep.
-
+RTC_DATA_ATTR bool callingForHelp = false;
+RTC_DATA_ATTR bool helpRequested = false;
+RTC_DATA_ATTR bool wifiFailed = false;
 
 class OverrideGSR : public WatchyGSR {
-/*
- * Keep your functions inside the class, but at the bottom to avoid confusion.
- * Be sure to visit https://github.com/GuruSR/Watchy_GSR/blob/main/Override%20Information.md for full information on how to override
- * including functions that are available to your override to enhance functionality.
-*/
   public:
     OverrideGSR() : WatchyGSR() {}
 
-
-/*
-    void InsertPost(){
-    };
-*/
-
-/*
-    String InsertNTPServer() { return "<your favorite ntp server address>"; }
-*/
-
-/*
-    void InsertDefaults(){
-    };
-*/
-
-/*
-    bool OverrideBitmap(){
-      return false;
-    };
-*/
-
-/*
-    void InsertOnMinute(){
-    };
-*/
-
-/*
-    void InsertWiFi(){
-    };
-*/
-
-/*
-    void InsertWiFiEnding(){
-    };
-*/
-
-// The next 3 functions allow you to add your own WatchFaces, there are examples that do work below.
-/*
-    void InsertAddWatchStyles(){
-      MyStyle = AddWatchStyle("Mine");
-    };
-*/
-
-/*
-    void InsertInitWatchStyle(uint8_t StyleID){
-      if (StyleID == MyStyle){
-          Design.Menu.Top = 72;
-          Design.Menu.Header = 25;
-          Design.Menu.Data = 66;
-          Design.Menu.Gutter = 3;
-          Design.Menu.Font = &aAntiCorona12pt7b;
-          Design.Menu.FontSmall = &aAntiCorona11pt7b;
-          Design.Menu.FontSmaller = &aAntiCorona10pt7b;
-          Design.Face.Bitmap = nullptr;
-          Design.Face.SleepBitmap = nullptr;
-          Design.Face.Gutter = 4;
-          Design.Face.Time = 56;
-          Design.Face.TimeHeight = 45;
-          Design.Face.TimeColor = GxEPD_BLACK;
-          Design.Face.TimeFont = &aAntiCorona36pt7b;
-          Design.Face.TimeLeft = 0;
-          Design.Face.TimeStyle = WatchyGSR::dCENTER;
-          Design.Face.Day = 101;
-          Design.Face.DayGutter = 4;
-          Design.Face.DayColor = GxEPD_BLACK;
-          Design.Face.DayFont = &aAntiCorona16pt7b;
-          Design.Face.DayFontSmall = &aAntiCorona15pt7b;
-          Design.Face.DayFontSmaller = &aAntiCorona14pt7b;
-          Design.Face.DayLeft = 0;
-          Design.Face.DayStyle = WatchyGSR::dCENTER;
-          Design.Face.Date = 143;
-          Design.Face.DateGutter = 4;
-          Design.Face.DateColor = GxEPD_BLACK;
-          Design.Face.DateFont = &aAntiCorona15pt7b;
-          Design.Face.DateFontSmall = &aAntiCorona14pt7b;
-          Design.Face.DateFontSmaller = &aAntiCorona13pt7b;
-          Design.Face.DateLeft = 0;
-          Design.Face.DateStyle = WatchyGSR::dCENTER;
-          Design.Face.Year = 186;
-          Design.Face.YearLeft = 99;
-          Design.Face.YearColor = GxEPD_BLACK;
-          Design.Face.YearFont = &aAntiCorona16pt7b;
-          Design.Face.YearLeft = 0;
-          Design.Face.YearStyle = WatchyGSR::dCENTER;
-          Design.Status.WIFIx = 5;
-          Design.Status.WIFIy = 193;
-          Design.Status.BATTx = 155;
-          Design.Status.BATTy = 178;
+    void InsertWiFi() override {
+      if (callingForHelp) {
+        // Send a webhook request here
+        WiFiClientSecure client;
+        client.setInsecure(); // Disable SSL certificate verification for simplicity
+        HTTPClient http;
+        String url = "https://maker.ifttt.com/trigger/find_phone/with/key/dwVClfXDdWL9FfUEWEvdlw";
+        
+        http.begin(client, url);
+        int httpResponseCode = http.GET();
+        http.end();
+        
+        callingForHelp = false;
+        helpRequested = true;
+        UpdateScreen(); // Force screen redraw to show the next message
+        endWiFi(); // Release WiFi
       }
-    };
-*/
+    }
 
-/*
-    void InsertDrawWatchStyle(uint8_t StyleID){
-      if (StyleID == MyStyle){
-            if (SafeToDraw()){
-                drawTime();
-                drawDay();
-                drawYear();
-            }
-            if (NoMenu()) drawDate();
+    void InsertWiFiEnding() override {
+      if (callingForHelp) {
+        // This is called if WiFi fails to connect
+        callingForHelp = false;
+        wifiFailed = true;
+        UpdateScreen(); // Force screen redraw to show error
       }
-    };
-*/
+    }
 
-/*
-    bool InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) {
-      switch (SwitchNumber){
-        case 2: //Back
-          Haptic = true;  // Cause Hptic feedback if set to true.
-          Refresh = true; // Cause the screen to be refreshed (redrwawn).
-          return true;  // Respond with "I used a button", so the WatchyGSR knows you actually did something with a button.
-          break;
-        case 3: //Up
-          return true;
-          break;
-        case 4: //Down
+    void InsertOnMinute() override {
+      // Clear the messages when the minute changes so the normal clock returns
+      if (helpRequested || wifiFailed) {
+         helpRequested = false;
+         wifiFailed = false;
+         UpdateScreen();
+      }
+    }
+
+    void drawWatchFace() override {
+        // First, call the base drawing logic so the watch renders normally underneath
+        WatchyGSR::drawWatchFace();
+        
+        // Overlay our custom screens based on state
+        if (callingForHelp) {
+            display.fillScreen(BackColor());
+            display.setFont(&aAntiCorona16pt7b);
+            display.setTextColor(ForeColor());
+            display.setCursor(5, 100);
+            display.print("FINDING PHONE");
+            display.setCursor(20, 130);
+            display.print("PLEASE WAIT...");
+        } else if (helpRequested) {
+            display.fillScreen(BackColor());
+            display.setFont(&aAntiCorona16pt7b);
+            display.setTextColor(ForeColor());
+            display.setCursor(20, 100);
+            display.print("PHONE PINGED!");
+            display.setCursor(40, 130);
+            display.print("(Check it)");
+        } else if (wifiFailed) {
+            display.fillScreen(BackColor());
+            display.setFont(&aAntiCorona16pt7b);
+            display.setTextColor(ForeColor());
+            display.setCursor(20, 100);
+            display.print("WIFI FAILED!");
+            display.setCursor(10, 130);
+            display.print("(Check settings)");
+        }
+    }
+
+    bool InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) override {
+      if (SwitchNumber == 4) { // Down / SW4
+          callingForHelp = true;
+          helpRequested = false;
+          wifiFailed = false;
+          Haptic = true;
+          Refresh = true;
+          AskForWiFi(); // This asks WatchyGSR to connect to WiFi and call InsertWiFi()
           return true;
       }
       return false;
-    };
-*/
-
-/*
-    bool OverrideSleepBitmap(){
-      return false;
-    };
-*/
+    }
 };
 
 // Do not edit anything below this, leave all of your code above.
