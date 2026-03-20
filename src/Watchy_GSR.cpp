@@ -503,7 +503,7 @@ void WatchyGSR::init(String datetime){
             }else if (Button == 10 && !WatchTime.BedTime){  // Wrist.
                 DisplayWake(); // Do this anyways, always.
             }else if (Button){
-                DisplayWake(); LastButton = millis(); // Button = 0; removed to make buttons responsive instantly from sleep
+                DisplayWake(); // LastButton = millis(); removed so it doesn't debounce the instant wakeup
             }
         }
         if (Darkness.Woke || Button) UpdateClock();  // Make sure this is done when buttons are pressed for a wakeup.
@@ -1037,18 +1037,15 @@ void WatchyGSR::drawDay(){
 }
 
 void WatchyGSR::drawDate(bool Short){
-    String O = LGSR.GetFormatID(Options.LanguageID,1);
-    O.replace("{M}",(Short ? LGSR.GetShortMonth(Options.LanguageID, WatchTime.Local.Month) : LGSR.GetMonth(Options.LanguageID, WatchTime.Local.Month)));
-    O.replace("{D}",String(WatchTime.Local.Day));
-    setFontFor(O,Design.Face.DateFont,Design.Face.DateFontSmall,Design.Face.DateFontSmaller,Design.Face.DateGutter);
-    setFontColor(Design.Face.DateColor);
-    drawData(O, Design.Face.DateLeft, Design.Face.Date, Design.Face.DateStyle, Design.Face.DateGutter);
+    // Date is now appended to the year field.
 }
 
 void WatchyGSR::drawYear(){
+    char buf[20];
+    snprintf(buf, sizeof(buf), "%04d.%02d.%02d", WatchTime.Local.Year + SRTC.getLocalYearOffset(), WatchTime.Local.Month + 1, WatchTime.Local.Day);
     display.setFont(Design.Face.YearFont);
     setFontColor(Design.Face.YearColor);
-    drawData(String(WatchTime.Local.Year + SRTC.getLocalYearOffset()), Design.Face.YearLeft, Design.Face.Year, Design.Face.YearStyle, Design.Face.Gutter);  //1900
+    drawData(String(buf), Design.Face.YearLeft, Design.Face.Year, Design.Face.YearStyle, Design.Face.Gutter);  //1900
 }
 
 void WatchyGSR::drawMenu(){
@@ -2114,11 +2111,17 @@ void WatchyGSR::drawChargeMe(bool Dark){
   uint16_t C = (Dark ? GxEPD_WHITE : ForeColor());
   Battery.Read = (rawBatteryVoltage()) / 100;
   if (Design.Status.BatteryInverted && !B) C = BackColor();
-  if (Battery.Direction == 1){
-      display.drawBitmap(Design.Status.BATTx, Design.Status.BATTy, Charging, 40, 17, C);   // Show Battery charging bitmap.
-  }else if (Battery.Read < getLowBattery(true) && Battery.Read > 3.2999f){ // At <3.3v, the display won't work (V3 workaround).
-      display.drawBitmap(Design.Status.BATTx, Design.Status.BATTy, (Battery.Read < getLowBattery() ? ChargeMeBad : ChargeMe), 40, 17, C);   // Show Battery needs charging bitmap.
-  }
+
+  float voltage = Battery.Read;
+  int percentage = 0;
+  if (voltage >= 4.20) percentage = 100;
+  else if (voltage <= 3.30) percentage = 0;
+  else percentage = (int)((voltage - 3.30) / (4.20 - 3.30) * 100.0);
+
+  String O = "Bat:" + String(percentage) + "%";
+  display.setFont(&Bronova_Regular13pt7b);
+  display.setTextColor(C);
+  drawData(O, 0, Design.Face.Date, WatchyGSR::dRIGHT, Design.Face.DateGutter);
 }
 
 void WatchyGSR::drawStatus(bool Dark){
@@ -5243,7 +5246,7 @@ void WatchyGSR::initWatchFaceStyle(){
   Design.Face.DayFontSmaller = &aAntiCorona14pt7b;
   Design.Face.DayLeft = 0;
   Design.Face.DayStyle = WatchyGSR::dCENTER;
-  Design.Face.Date = 143;
+  Design.Face.Date = 186;
   Design.Face.DateGutter = 4;
   Design.Face.DateColor = GSR_AutoFore;
   Design.Face.DateFont = &aAntiCorona15pt7b;
@@ -5251,7 +5254,7 @@ void WatchyGSR::initWatchFaceStyle(){
   Design.Face.DateFontSmaller = &aAntiCorona13pt7b;
   Design.Face.DateLeft = 0;
   Design.Face.DateStyle = WatchyGSR::dCENTER;
-  Design.Face.Year = 186;
+  Design.Face.Year = 143;
   Design.Face.YearLeft = 99;
   Design.Face.YearColor = GSR_AutoFore;
   Design.Face.YearFont = &aAntiCorona16pt7b;
