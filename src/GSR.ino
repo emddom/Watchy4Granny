@@ -73,18 +73,36 @@ class OverrideGSR : public WatchyGSR {
             display.fillScreen(BackColor());
             display.setFont(&aAntiCorona16pt7b);
             display.setTextColor(ForeColor());
-            display.setCursor(10, 30);
-            display.print("MEDICAL INFO");
             
+            String title = "MEDICAL INFO";
+            int16_t x1, y1;
+            uint16_t w, h;
+            
+            // Center the title
+            display.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
+            display.setCursor((200 - w) / 2, 30);
+            display.print(title);
+            
+            String line1 = "Name: Endre Domiczi";
+            String line2 = "ID: 35307050015";
+            String line3 = "Allergies: None";
+            String line4 = "Birth: 1953.07.05";
+
+            // Detect if the longest string fits, otherwise adjust to a smaller font
             display.setFont(&aAntiCorona11pt7b);
-            display.setCursor(10, 70);
-            display.print("Name: Endre Domiczi");
-            display.setCursor(10, 100);
-            display.print("ID: 35307050015");
-            display.setCursor(10, 130);
-            display.print("Allergies: None");
-            display.setCursor(10, 160);
-            display.print("Birth: 1953.07.05");
+            display.getTextBounds(line1, 0, 0, &x1, &y1, &w, &h);
+            if (w > 180) {
+                display.setFont(&aAntiCorona10pt7b); // Downgrade font size
+            }
+            
+            display.setCursor(5, 70);
+            display.print(line1);
+            display.setCursor(5, 100);
+            display.print(line2);
+            display.setCursor(5, 130);
+            display.print(line3);
+            display.setCursor(5, 160);
+            display.print(line4);
         } else if (callingForHelp) {
             display.fillScreen(BackColor());
             display.setFont(&aAntiCorona16pt7b);
@@ -113,6 +131,18 @@ class OverrideGSR : public WatchyGSR {
     }
 
     bool InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) override {
+      if (showingMedInfo || callingForHelp || helpRequested || wifiFailed) {
+          if (SwitchNumber == 2) { // Back / SW2
+              showingMedInfo = false;
+              callingForHelp = false;
+              helpRequested = false;
+              wifiFailed = false;
+              Haptic = true;
+              Refresh = true;
+              return true; // We handled the button press
+          }
+      }
+      
       if (SwitchNumber == 3) { // Up / SW3
           showingMedInfo = !showingMedInfo; // Toggle med info
           Haptic = true;
