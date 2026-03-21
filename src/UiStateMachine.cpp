@@ -1,44 +1,12 @@
 #include "UiStateMachine.h"
 #include "OverrideGSR.h"
 
-// Forward declarations of states
-class WatchfaceState : public State {
-public:
-    void enter(StateMachine* sm) override;
-    void execute(StateMachine* sm) override;
-    void exit(StateMachine* sm) override;
-    void handleButton(StateMachine* sm, uint8_t button) override;
-};
-
-class MenuState : public State {
-public:
-    void enter(StateMachine* sm) override;
-    void execute(StateMachine* sm) override;
-    void exit(StateMachine* sm) override;
-    void handleButton(StateMachine* sm, uint8_t button) override;
-};
-
-class MedInfoState : public State {
-public:
-    void enter(StateMachine* sm) override;
-    void execute(StateMachine* sm) override;
-    void exit(StateMachine* sm) override;
-    void handleButton(StateMachine* sm, uint8_t button) override;
-};
-
-class FindFoneState : public State {
-public:
-    void enter(StateMachine* sm) override;
-    void execute(StateMachine* sm) override;
-    void exit(StateMachine* sm) override;
-    void handleButton(StateMachine* sm, uint8_t button) override;
-};
-
 // State instances
 WatchfaceState watchfaceState;
 MenuState menuState;
 MedInfoState medInfoState;
 FindFoneState findFoneState;
+SuspendState suspendState;
 
 // UiStateMachine implementation
 UiStateMachine::UiStateMachine(OverrideGSR* w) : StateMachine(&watchfaceState), watchy(w) {
@@ -80,8 +48,8 @@ void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
     if (usm->watchy->InsertHandlePressed(button, haptic, refresh)) {
         if (haptic) usm->watchy->VibeTo(true);
         // State might have changed inside InsertHandlePressed if we are not careful
-        // but for now we manually check flags
-        if (showingMedInfo) usm->setState(&medInfoState);
+        if (isSuspended) usm->setState(&suspendState);
+        else if (showingMedInfo) usm->setState(&medInfoState);
         else if (callingForHelp) usm->setState(&findFoneState);
         return;
     }
@@ -107,11 +75,6 @@ void MenuState::handleButton(StateMachine* sm, uint8_t button) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     // Call the legacy menu handling logic
     usm->watchy->handleMenuButton(button);
-    
-    // Check if we exited the menu (GuiMode changed)
-    // This is a bit of a bridge until GuiMode itself is part of the SM state
-    // We can't easily access GuiMode here as it's a static in Watchy_GSR.cpp
-    // but the WatchyGSR class has it as a member (actually it's a global in the .cpp)
 }
 
 // MedInfoState implementation
@@ -155,5 +118,31 @@ void FindFoneState::handleButton(StateMachine* sm, uint8_t button) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     if (button == 2) { // Back
         usm->setState(&watchfaceState);
+    }
+}
+
+// SuspendState implementation
+void SuspendState::enter(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    isSuspended = true;
+    usm->watchy->UpdateScreen();
+}
+
+void SuspendState::execute(StateMachine* sm) {
+}
+
+void SuspendState::exit(StateMachine* sm) {
+    isSuspended = false;
+}
+
+void SuspendState::handleButton(StateMachine* sm, uint8_t button) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    bool haptic = false;
+    bool refresh = false;
+    if (usm->watchy->InsertHandlePressed(button, haptic, refresh)) {
+        if (haptic) usm->watchy->VibeTo(true);
+        if (!isSuspended) {
+            usm->setState(&watchfaceState);
+        }
     }
 }

@@ -1,4 +1,5 @@
 #include "OverrideGSR.h"
+#include "UiStateMachine.h"
 
 RTC_DATA_ATTR bool callingForHelp = false;
 RTC_DATA_ATTR bool helpRequested = false;
@@ -43,9 +44,8 @@ void OverrideGSR::InsertOnMinute() {
   else percentage = (int)((voltage - 3.30) / (4.20 - 3.30) * 100.0);
 
   if (percentage <= GetSuspendLevel() && GetBatteryState() != 3 && !isSuspended) {
-      isSuspended = true;
       suspendTime = WatchTime.UTC_RAW;
-      UpdateScreen(); // Force screen redraw to show suspend screen
+      uiSM.setState(&suspendState);
   }
 
   // Clear the messages when the minute changes so the normal clock returns
@@ -174,7 +174,7 @@ void OverrideGSR::drawWatchFace() {
 bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) {
   if (isSuspended) {
       if (GetBatteryState() == 3 && SwitchNumber == 3) { // SW3 (Up)
-          isSuspended = false;
+          uiSM.setState(&watchfaceState);
           Haptic = true;
           Refresh = true;
       }
