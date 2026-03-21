@@ -4086,7 +4086,7 @@ uint8_t WatchyGSR::getButtonMaskToID(uint64_t HW){
 
 uint8_t WatchyGSR::getSWValue(bool SW1, bool SW2, bool SW3, bool SW4){
     bool T;
-    if (Options.Swapped) { T = SW1; SW2=SW1; SW1=T; }
+    if (Options.Swapped) { T = SW1; SW1=SW2; SW2=T; }
     if (Options.Lefty){
         T = SW1; SW1=SW4; SW4=T;
         T = SW3; SW3=SW2; SW2=T;

@@ -161,8 +161,12 @@ void ShowButtonsState::enter(StateMachine* sm) {
 }
 
 void ShowButtonsState::execute(StateMachine* sm) {
-    if (millis() - showButtonsStartTime >= 5000) {
-        UiStateMachine* usm = (UiStateMachine*)sm;
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    if (usm->watchy->getButtonPins() > 0) {
+        showButtonsStartTime = millis(); // Reset timer if a button is still held
+    }
+
+    if (millis() - showButtonsStartTime >= 10000) {
         usm->setState(&watchfaceState);
     }
 }

@@ -115,20 +115,45 @@ void OverrideGSR::drawWatchFace() {
     // Overlay our custom screens based on state
     if (showingButtons) {
         display.fillScreen(BackColor());
-        display.setFont(&aAntiCorona11pt7b);
+        display.setFont(&aAntiCorona10pt7b);
         display.setTextColor(ForeColor());
-        
-        display.setCursor(5, 40);
-        display.print("SW1: Menu");
-        
-        display.setCursor(5, 180);
-        display.print("SW2: Buttons");
-        
-        display.setCursor(95, 40);
-        display.print("SW3: MedInfo");
-        
-        display.setCursor(95, 180);
-        display.print("SW4: FindFone");
+
+        auto getLogicalName = [](uint8_t logicalId) -> String {
+            if (logicalId == 1) return "Menu";
+            if (logicalId == 2) return "Buttons";
+            if (logicalId == 3) return "MedInfo";
+            if (logicalId == 4) return "FindPhone";
+            return "";
+        };
+
+        auto printTruncated = [&](String text, int16_t x, int16_t y, int16_t maxWidth) {
+            int16_t x1, y1;
+            uint16_t w, h;
+            display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+            if (w > maxWidth) {
+                while (text.length() > 0) {
+                    text.remove(text.length() - 1);
+                    String temp = text + "..";
+                    display.getTextBounds(temp, 0, 0, &x1, &y1, &w, &h);
+                    if (w <= maxWidth) {
+                        text = temp;
+                        break;
+                    }
+                }
+            }
+            display.setCursor(x, y);
+            display.print(text);
+        };
+
+        // Top Left corner (Physical SW1)
+        printTruncated(getLogicalName(WatchyGSR::getSWValue(1, 0, 0, 0)), 5, 40, 90);
+        // Bottom Left corner (Physical SW2)
+        printTruncated(getLogicalName(WatchyGSR::getSWValue(0, 1, 0, 0)), 5, 180, 90);
+        // Top Right corner (Physical SW3)
+        printTruncated(getLogicalName(WatchyGSR::getSWValue(0, 0, 1, 0)), 105, 40, 90);
+        // Bottom Right corner (Physical SW4)
+        printTruncated(getLogicalName(WatchyGSR::getSWValue(0, 0, 0, 1)), 105, 180, 90);
+
     } else if (showingMedInfo) {
         display.fillScreen(BackColor());
         display.setFont(&aAntiCorona16pt7b);

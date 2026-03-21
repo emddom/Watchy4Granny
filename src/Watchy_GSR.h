@@ -226,7 +226,9 @@ class WatchyGSR{
         String getReduce(uint8_t Amount);
         void monitorSteps();
         uint8_t getButtonMaskToID(uint64_t HW);
+    public:
         static uint8_t getSWValue(bool SW1, bool SW2, bool SW3, bool SW4);
+    private:
         void SetAskWiFi(bool SetWiFi);
         bool HasIPAddress();
         bool WiFiInProgress();
