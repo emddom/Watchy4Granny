@@ -319,6 +319,7 @@ RTC_DATA_ATTR BaseType_t GSRRet;
 RTC_DATA_ATTR TaskHandle_t KeysHandle;
 RTC_DATA_ATTR BaseType_t KeysRet;
 RTC_DATA_ATTR bool Started = false, SoundStart = false;
+RTC_DATA_ATTR char LastBuild[10] = "";
 RTC_DATA_ATTR GSRCPUInfo Watchy_Chip_Info;
 RTC_DATA_ATTR volatile int LastWebError;
 
@@ -417,7 +418,14 @@ void WatchyGSR::init(String datetime){
             userWakeup = true;
             break;
         default: //reset
+            if (strcmp(LastBuild, Build) != 0) {
+                GSRWireless backupWiFi = GSRWiFi;
+                initZeros();
+                GSRWiFi = backupWiFi;
+                strncpy(LastBuild, Build, 10);
+            }
             MonitorTo = this;
+
             SetupESPValues();
             adcPins();
             BrownOutDetect();
