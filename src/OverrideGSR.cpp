@@ -121,8 +121,8 @@ void OverrideGSR::drawWatchFace() {
         auto getLogicalName = [](uint8_t logicalId) -> String {
             if (logicalId == 1) return "Menu";
             if (logicalId == 2) return "Buttons";
-            if (logicalId == 3) return "MedInfo";
-            if (logicalId == 4) return "FindPhone";
+            if (logicalId == 3) return "FindPhone";
+            if (logicalId == 4) return "Med";
             return "";
         };
 
@@ -146,13 +146,13 @@ void OverrideGSR::drawWatchFace() {
         };
 
         // Top Left corner (Physical SW1)
-        printTruncated(getLogicalName(WatchyGSR::getSWValue(1, 0, 0, 0)), 5, 40, 90);
+        printTruncated("SW1: " + getLogicalName(WatchyGSR::getSWValue(1, 0, 0, 0)), 5, 40, 95);
         // Bottom Left corner (Physical SW2)
-        printTruncated(getLogicalName(WatchyGSR::getSWValue(0, 1, 0, 0)), 5, 180, 90);
+        printTruncated("SW2: " + getLogicalName(WatchyGSR::getSWValue(0, 1, 0, 0)), 5, 180, 95);
         // Top Right corner (Physical SW3)
-        printTruncated(getLogicalName(WatchyGSR::getSWValue(0, 0, 1, 0)), 105, 40, 90);
+        printTruncated("SW3: " + getLogicalName(WatchyGSR::getSWValue(0, 0, 1, 0)), 105, 40, 95);
         // Bottom Right corner (Physical SW4)
-        printTruncated(getLogicalName(WatchyGSR::getSWValue(0, 0, 0, 1)), 105, 180, 90);
+        printTruncated("SW4: " + getLogicalName(WatchyGSR::getSWValue(0, 0, 0, 1)), 105, 180, 95);
 
     } else if (showingMedInfo) {
         display.fillScreen(BackColor());
@@ -240,12 +240,7 @@ bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &
       }
   }
   
-  if (SwitchNumber == 3) { // Up / SW3
-      showingMedInfo = !showingMedInfo; // Toggle med info
-      Haptic = true;
-      Refresh = true;
-      return true;
-  } else if (SwitchNumber == 4) { // Down / SW4
+  if (SwitchNumber == 3) { // Up / SW3 (Now FindPhone)
       callingForHelp = true;
       helpRequested = false;
       wifiFailed = false;
@@ -253,6 +248,11 @@ bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &
       Haptic = true;
       Refresh = true;
       AskForWiFi(); // This asks WatchyGSR to connect to WiFi and call InsertWiFi()
+      return true;
+  } else if (SwitchNumber == 4) { // Down / SW4 (Now MedInfo)
+      showingMedInfo = !showingMedInfo; // Toggle med info
+      Haptic = true;
+      Refresh = true;
       return true;
   }
   return false;
