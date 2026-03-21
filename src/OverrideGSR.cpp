@@ -6,6 +6,7 @@ RTC_DATA_ATTR bool helpRequested = false;
 RTC_DATA_ATTR bool wifiFailed = false;
 RTC_DATA_ATTR bool showingMedInfo = false;
 RTC_DATA_ATTR bool isSuspended = false;
+RTC_DATA_ATTR bool showingButtons = false;
 RTC_DATA_ATTR time_t suspendTime = 0;
 
 void OverrideGSR::InsertWiFi() {
@@ -49,15 +50,17 @@ void OverrideGSR::InsertOnMinute() {
   }
 
   // Clear the messages when the minute changes so the normal clock returns
-  if (helpRequested || wifiFailed || showingMedInfo) {
+  if (helpRequested || wifiFailed || showingMedInfo || showingButtons) {
      helpRequested = false;
      wifiFailed = false;
      showingMedInfo = false;
+     showingButtons = false;
      UpdateScreen();
   }
 }
 
 bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
+    if (showingButtons) return true;
     if (isSuspended && GetBatteryState() == 3) {
         return true; // Keep awake when charging to animate blinking character
     }
@@ -110,7 +113,23 @@ void OverrideGSR::drawWatchFace() {
     WatchyGSR::drawWatchFace();
     
     // Overlay our custom screens based on state
-    if (showingMedInfo) {
+    if (showingButtons) {
+        display.fillScreen(BackColor());
+        display.setFont(&aAntiCorona11pt7b);
+        display.setTextColor(ForeColor());
+        
+        display.setCursor(5, 40);
+        display.print("SW1: Menu");
+        
+        display.setCursor(5, 180);
+        display.print("SW2: Buttons");
+        
+        display.setCursor(95, 40);
+        display.print("SW3: MedInfo");
+        
+        display.setCursor(95, 180);
+        display.print("SW4: FindFone");
+    } else if (showingMedInfo) {
         display.fillScreen(BackColor());
         display.setFont(&aAntiCorona16pt7b);
         display.setTextColor(ForeColor());

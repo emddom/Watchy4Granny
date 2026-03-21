@@ -7,6 +7,7 @@ MenuState menuState;
 MedInfoState medInfoState;
 FindFoneState findFoneState;
 SuspendState suspendState;
+ShowButtonsState showButtonsState;
 
 // UiStateMachine implementation
 UiStateMachine::UiStateMachine(OverrideGSR* w) : StateMachine(&watchfaceState), watchy(w) {
@@ -56,6 +57,8 @@ void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
 
     if (button == 1) { // Menu
         usm->setState(&menuState);
+    } else if (button == 2) { // Back
+        usm->setState(&showButtonsState);
     }
 }
 
@@ -145,4 +148,32 @@ void SuspendState::handleButton(StateMachine* sm, uint8_t button) {
             usm->setState(&watchfaceState);
         }
     }
+}
+
+// ShowButtonsState implementation
+unsigned long showButtonsStartTime = 0;
+
+void ShowButtonsState::enter(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    showingButtons = true;
+    showButtonsStartTime = millis();
+    usm->watchy->UpdateScreen();
+}
+
+void ShowButtonsState::execute(StateMachine* sm) {
+    if (millis() - showButtonsStartTime >= 5000) {
+        UiStateMachine* usm = (UiStateMachine*)sm;
+        usm->setState(&watchfaceState);
+    }
+}
+
+void ShowButtonsState::exit(StateMachine* sm) {
+    showingButtons = false;
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    usm->watchy->UpdateScreen();
+}
+
+void ShowButtonsState::handleButton(StateMachine* sm, uint8_t button) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    usm->setState(&watchfaceState);
 }

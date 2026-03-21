@@ -25,6 +25,7 @@ extern RTC_DATA_ATTR bool helpRequested;
 extern RTC_DATA_ATTR bool wifiFailed;
 extern RTC_DATA_ATTR bool showingMedInfo;
 extern RTC_DATA_ATTR bool isSuspended;
+extern RTC_DATA_ATTR bool showingButtons;
 extern RTC_DATA_ATTR time_t suspendTime;
 
 
