@@ -7,7 +7,7 @@ public:
     void enter(StateMachine* sm) override;
     void execute(StateMachine* sm) override;
     void exit(StateMachine* sm) override;
-    void handleButton(UiStateMachine* usm, uint8_t button);
+    void handleButton(StateMachine* sm, uint8_t button) override;
 };
 
 class MenuState : public State {
@@ -15,7 +15,7 @@ public:
     void enter(StateMachine* sm) override;
     void execute(StateMachine* sm) override;
     void exit(StateMachine* sm) override;
-    void handleButton(UiStateMachine* usm, uint8_t button);
+    void handleButton(StateMachine* sm, uint8_t button) override;
 };
 
 class MedInfoState : public State {
@@ -23,7 +23,7 @@ public:
     void enter(StateMachine* sm) override;
     void execute(StateMachine* sm) override;
     void exit(StateMachine* sm) override;
-    void handleButton(UiStateMachine* usm, uint8_t button);
+    void handleButton(StateMachine* sm, uint8_t button) override;
 };
 
 class FindFoneState : public State {
@@ -31,7 +31,7 @@ public:
     void enter(StateMachine* sm) override;
     void execute(StateMachine* sm) override;
     void exit(StateMachine* sm) override;
-    void handleButton(UiStateMachine* usm, uint8_t button);
+    void handleButton(StateMachine* sm, uint8_t button) override;
 };
 
 // State instances
@@ -54,13 +54,9 @@ void UiStateMachine::update() {
 }
 
 void UiStateMachine::handleEvent(int event) {
-    // Cast current state to handle button
-    // This is a bit hacky, but works for now. 
-    // A better way would be to have a virtual handleButton in State base class.
-    if (currentState == &watchfaceState) watchfaceState.handleButton(this, (uint8_t)event);
-    else if (currentState == &menuState) menuState.handleButton(this, (uint8_t)event);
-    else if (currentState == &medInfoState) medInfoState.handleButton(this, (uint8_t)event);
-    else if (currentState == &findFoneState) findFoneState.handleButton(this, (uint8_t)event);
+    if (currentState) {
+        currentState->handleButton(this, (uint8_t)event);
+    }
 }
 
 // WatchfaceState implementation
@@ -75,7 +71,8 @@ void WatchfaceState::execute(StateMachine* sm) {
 void WatchfaceState::exit(StateMachine* sm) {
 }
 
-void WatchfaceState::handleButton(UiStateMachine* usm, uint8_t button) {
+void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
     bool haptic = false;
     bool refresh = false;
     
@@ -106,7 +103,8 @@ void MenuState::execute(StateMachine* sm) {
 void MenuState::exit(StateMachine* sm) {
 }
 
-void MenuState::handleButton(UiStateMachine* usm, uint8_t button) {
+void MenuState::handleButton(StateMachine* sm, uint8_t button) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
     // Call the legacy menu handling logic
     usm->watchy->handleMenuButton(button);
     
@@ -130,7 +128,8 @@ void MedInfoState::exit(StateMachine* sm) {
     showingMedInfo = false;
 }
 
-void MedInfoState::handleButton(UiStateMachine* usm, uint8_t button) {
+void MedInfoState::handleButton(StateMachine* sm, uint8_t button) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
     if (button == 2) { // Back
         usm->setState(&watchfaceState);
     }
@@ -152,7 +151,8 @@ void FindFoneState::exit(StateMachine* sm) {
     usm->watchy->endWiFi();
 }
 
-void FindFoneState::handleButton(UiStateMachine* usm, uint8_t button) {
+void FindFoneState::handleButton(StateMachine* sm, uint8_t button) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
     if (button == 2) { // Back
         usm->setState(&watchfaceState);
     }

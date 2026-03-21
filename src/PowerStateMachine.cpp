@@ -28,15 +28,11 @@ void PowerStateMachine::handleWakeup() {
     setState(&awakeState);
 }
 
+extern bool ActiveMode;
+
 bool PowerStateMachine::shouldSleep() {
     if (currentState == &awakeState) {
-        // Here we would check for active flags in watchy
-        // For now, if no button was pressed for a while
-        // But we need to check if NTP is running, etc.
-        
-        // This is just a placeholder. Real logic should check ActiveMode flags.
-        // return !watchy->IsActive(); // assuming such a method exists or we check flags
-        return false; // Stay awake for now while we test
+        return !ActiveMode;
     }
     return false;
 }

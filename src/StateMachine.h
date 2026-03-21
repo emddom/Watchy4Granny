@@ -10,6 +10,7 @@ public:
     virtual void enter(StateMachine* sm) = 0;
     virtual void execute(StateMachine* sm) = 0;
     virtual void exit(StateMachine* sm) = 0;
+    virtual void handleButton(StateMachine* sm, uint8_t button) {}
     virtual ~State() {}
 };
 
