@@ -24,6 +24,9 @@ extern RTC_DATA_ATTR bool callingForHelp;
 extern RTC_DATA_ATTR bool helpRequested;
 extern RTC_DATA_ATTR bool wifiFailed;
 extern RTC_DATA_ATTR bool showingMedInfo;
+extern RTC_DATA_ATTR bool isSuspended;
+extern RTC_DATA_ATTR time_t suspendTime;
+
 
 
 class OverrideGSR : public WatchyGSR {
@@ -35,6 +38,7 @@ class OverrideGSR : public WatchyGSR {
     void InsertOnMinute() override;
     void drawWatchFace() override;
     bool InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) override;
+    bool InsertNeedAwake(bool GoingAsleep) override;
 };
 
 #endif // OVERRIDEGSR_H

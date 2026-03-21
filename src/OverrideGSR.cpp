@@ -4,6 +4,8 @@ RTC_DATA_ATTR bool callingForHelp = false;
 RTC_DATA_ATTR bool helpRequested = false;
 RTC_DATA_ATTR bool wifiFailed = false;
 RTC_DATA_ATTR bool showingMedInfo = false;
+RTC_DATA_ATTR bool isSuspended = false;
+RTC_DATA_ATTR time_t suspendTime = 0;
 
 void OverrideGSR::InsertWiFi() {
   if (callingForHelp) {
@@ -34,6 +36,18 @@ void OverrideGSR::InsertWiFiEnding() {
 }
 
 void OverrideGSR::InsertOnMinute() {
+  float voltage = WatchyGSR::getBatteryVoltage();
+  int percentage = 0;
+  if (voltage >= 4.20) percentage = 100;
+  else if (voltage <= 3.30) percentage = 0;
+  else percentage = (int)((voltage - 3.30) / (4.20 - 3.30) * 100.0);
+
+  if (percentage <= GetSuspendLevel() && GetBatteryState() != 3 && !isSuspended) {
+      isSuspended = true;
+      suspendTime = WatchTime.UTC_RAW;
+      UpdateScreen(); // Force screen redraw to show suspend screen
+  }
+
   // Clear the messages when the minute changes so the normal clock returns
   if (helpRequested || wifiFailed || showingMedInfo) {
      helpRequested = false;
@@ -43,7 +57,55 @@ void OverrideGSR::InsertOnMinute() {
   }
 }
 
+bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
+    if (isSuspended && GetBatteryState() == 3) {
+        return true; // Keep awake when charging to animate blinking character
+    }
+    return false;
+}
+
 void OverrideGSR::drawWatchFace() {
+    if (isSuspended) {
+        display.fillScreen(BackColor());
+        display.setFont(&aAntiCorona16pt7b);
+        display.setTextColor(ForeColor());
+        
+        if (GetBatteryState() == 3) {
+            // Charging
+            display.setCursor(5, 30);
+            display.print("CHARGING...");
+            display.setFont(&aAntiCorona10pt7b);
+            display.setCursor(5, 60);
+            struct tm * t = localtime(&suspendTime);
+            char buf[32];
+            strftime(buf, sizeof(buf), "Suspended at %H:%M", t);
+            display.print(buf);
+            
+            display.setCursor(5, 90);
+            display.print("Steps: " + String(CurrentStepCount()));
+            display.setCursor(5, 120);
+            display.print(CountdownTimerActive() ? "Timers: Active" : "Timers: Saved");
+            
+            display.setFont(&aAntiCorona16pt7b);
+            display.setCursor(5, 160);
+            display.print("WAKE UP?");
+            
+            // Blinking character next to SW3 (Top Right button is button 3)
+            if (WatchTime.Local.Second % 2 == 0) {
+                display.setCursor(180, 50); // Near top right button
+                display.print("*");
+            }
+        } else {
+            // Suspended, not charging
+            display.setCursor(20, 100);
+            display.print("SUSPENDED");
+            display.setFont(&aAntiCorona10pt7b);
+            display.setCursor(10, 130);
+            display.print("Battery critically low");
+        }
+        return;
+    }
+
     // First, call the base drawing logic so the watch renders normally underneath
     WatchyGSR::drawWatchFace();
     
@@ -110,6 +172,15 @@ void OverrideGSR::drawWatchFace() {
 }
 
 bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) {
+  if (isSuspended) {
+      if (GetBatteryState() == 3 && SwitchNumber == 3) { // SW3 (Up)
+          isSuspended = false;
+          Haptic = true;
+          Refresh = true;
+      }
+      return true; // Block other interactions while suspended
+  }
+
   if (showingMedInfo || callingForHelp || helpRequested || wifiFailed) {
       if (SwitchNumber == 2) { // Back / SW2
           showingMedInfo = false;
@@ -142,3 +213,4 @@ bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &
   }
   return false;
 }
+

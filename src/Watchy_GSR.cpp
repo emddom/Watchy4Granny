@@ -66,7 +66,8 @@ RTC_DATA_ATTR struct Optional final {
     uint8_t SleepMode;                // Turns screen off (black, won't show any screen unless a button is pressed)
     uint8_t SleepStart;               // Hour when you go to bed.
     uint8_t SleepEnd;                 // Hour when you wake up.
-    uint8_t Performance;              // Performance style, "Turbo", "Normal", "Battery Saving" 
+    uint8_t Performance;              // Performance style, "Turbo", "Normal", "Battery Saving"
+    uint8_t SuspendLevel; 
     bool NeedsSaving;                 // NVS code to tell it things have been updated, so save to NVS.
     bool BedTimeOrientation;          // Make Buttons only work while Watch is in normal orientation.
     uint8_t WatchFaceStyle;           // Using the Style values from Defines_GSR.
@@ -1472,6 +1473,8 @@ void WatchyGSR::drawMenu(){
         }else if (Menu.SubItem == 5){
             O = LGSR.GetID(Options.LanguageID,130);
         }
+    }else if (Menu.Item == GSR_MENU_SUSP){
+        O = "At: " + String(Options.SuspendLevel) + "%";
     }else if (Menu.Item == GSR_MENU_OTAU || Menu.Item == GSR_MENU_OTAM){  // OTA Update.
         if (Menu.SubItem == 0){
             O = LGSR.GetID(Options.LanguageID,100);
@@ -2604,6 +2607,8 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
                   DoHaptic = true;
                   UpdateDisp = true;  // Quick Update.
                   SetTurbo();
+              }else if (Menu.Item == GSR_MENU_SUSP){
+                  Menu.SubItem = 1;
               }else if ((Menu.Item == GSR_MENU_OTAU || Menu.Item == GSR_MENU_OTAM) && !(GSRWiFi.Requests > 0 || WatchyAPOn)){  // Watchy OTA
                   Menu.SubItem++;
                   OTAUpdate=true;
@@ -2772,6 +2777,8 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
                   UpdateDisp = true;  // Quick Update.
                   SetTurbo();
               }
+          }else if (Menu.Item == GSR_MENU_SUSP && Menu.SubItem > 0){
+              Menu.SubItem = 0; Options.NeedsSaving = true;
           }else if ((Menu.Item == GSR_MENU_OTAU || Menu.Item == GSR_MENU_OTAM) && Menu.SubItem > 0){
               break;    // DO NOTHING!
           }else if (Menu.Style == GSR_MENU_INALARMS){  // Alarms
@@ -3147,8 +3154,8 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
               return;
           }else{
               if (Menu.Style == GSR_MENU_INOPTIONS){
-                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_STYL, (Watchy_Chip_Info.HasWiFi & (NTPData.State > 0 || WatchyAPOn || OTAUpdate || Battery.Read < getLowBatteryRadio())) ? GSR_MENU_TRBL : GSR_MENU_OTAM);
-                  if (Menu.Item == GSR_MENU_WEAT && !GetWantWeather()) Menu.Item = roller(Menu.Item - 1, GSR_MENU_STYL, (Watchy_Chip_Info.HasWiFi & (NTPData.State > 0 || WatchyAPOn || OTAUpdate || Battery.Read < getLowBatteryRadio())) ? GSR_MENU_TRBL : GSR_MENU_OTAM);
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_STYL, (Watchy_Chip_Info.HasWiFi & (NTPData.State > 0 || WatchyAPOn || OTAUpdate || Battery.Read < getLowBatteryRadio())) ? GSR_MENU_TRBL : GSR_MENU_SUSP);
+                  if (Menu.Item == GSR_MENU_WEAT && !GetWantWeather()) Menu.Item = roller(Menu.Item - 1, GSR_MENU_STYL, (Watchy_Chip_Info.HasWiFi & (NTPData.State > 0 || WatchyAPOn || OTAUpdate || Battery.Read < getLowBatteryRadio())) ? GSR_MENU_TRBL : GSR_MENU_SUSP);
               }else if (Menu.Style == GSR_MENU_INALARMS){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_ALARM1, GSR_MENU_TONES);
               }else if (Menu.Style == GSR_MENU_INTIMERS){
@@ -3479,8 +3486,8 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
               return;
           }else{
               if (Menu.Style == GSR_MENU_INOPTIONS){
-                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_STYL, (Watchy_Chip_Info.HasWiFi & (NTPData.State > 0 || WatchyAPOn || OTAUpdate || Battery.Read < getLowBatteryRadio())) ? GSR_MENU_TRBL : GSR_MENU_OTAM);
-                  if (Menu.Item == GSR_MENU_WEAT && !GetWantWeather()) Menu.Item = roller(Menu.Item + 1, GSR_MENU_STYL, (Watchy_Chip_Info.HasWiFi & (NTPData.State > 0 || WatchyAPOn || OTAUpdate || Battery.Read < getLowBatteryRadio())) ? GSR_MENU_TRBL : GSR_MENU_OTAM);
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_STYL, (Watchy_Chip_Info.HasWiFi & (NTPData.State > 0 || WatchyAPOn || OTAUpdate || Battery.Read < getLowBatteryRadio())) ? GSR_MENU_TRBL : GSR_MENU_SUSP);
+                  if (Menu.Item == GSR_MENU_WEAT && !GetWantWeather()) Menu.Item = roller(Menu.Item + 1, GSR_MENU_STYL, (Watchy_Chip_Info.HasWiFi & (NTPData.State > 0 || WatchyAPOn || OTAUpdate || Battery.Read < getLowBatteryRadio())) ? GSR_MENU_TRBL : GSR_MENU_SUSP);
               }else if (Menu.Style == GSR_MENU_INALARMS){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_ALARM1, GSR_MENU_TONES);
               }else if (Menu.Style == GSR_MENU_INTIMERS){
@@ -5307,3 +5314,8 @@ void WatchyGSR::drawWeather(bool Status){
     else if (WatchStyles.Count > 0 && BasicWatchStyles == -1) { if (WatchStyles.AddOn[Style] == nullptr) InsertDrawWeather(Style,Status); else WatchStyles.AddOn[Style]->InsertDrawWeather(Style,Status); return; }
     InsertDrawWeather(Style,Status);
 }
+
+
+uint8_t WatchyGSR::GetSuspendLevel() { return Options.SuspendLevel; }
+int WatchyGSR::GetBatteryState() { return Battery.State; }
+bool WatchyGSR::GetTimerActive() { return TimerDown.Active; }

@@ -76,12 +76,13 @@
 #define GSR_MENU_WIFI 30
 #define GSR_MENU_OTAU 31
 #define GSR_MENU_OTAM 32
+#define GSR_MENU_SUSP 33
 // Troubleshooting Menu
-#define GSR_MENU_SCRN 33
-#define GSR_MENU_RSET 34
-#define GSR_MENU_TOFF 35  // Time Diff offset.
-#define GSR_MENU_BERR 36
-#define GSR_MENU_UNVS 37
+#define GSR_MENU_SCRN 34
+#define GSR_MENU_RSET 35
+#define GSR_MENU_TOFF 36  // Time Diff offset.
+#define GSR_MENU_BERR 37
+#define GSR_MENU_UNVS 38
 
 // Menu segments.
 #define GSR_MENU_INNORMAL 0

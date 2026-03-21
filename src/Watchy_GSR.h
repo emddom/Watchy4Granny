@@ -78,6 +78,9 @@ class WatchyGSR{
         virtual void InsertPost();
         virtual bool OverrideBitmap();
         virtual bool OverrideSleepBitmap();
+        uint8_t GetSuspendLevel();
+        int GetBatteryState();
+        bool GetTimerActive();
         virtual void InsertDefaults();
         virtual void InsertOnMinute();
         virtual void InsertWiFi();
