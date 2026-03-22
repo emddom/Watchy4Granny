@@ -40,6 +40,9 @@ class OverrideGSR : public WatchyGSR {
     void drawWatchFace() override;
     bool InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) override;
     bool InsertNeedAwake(bool GoingAsleep) override;
+    void InsertHandleShowButtons() override;
+    void InsertHandleFindPhone() override;
+    void InsertHandleMedInfo() override;
 };
 
 #endif // OVERRIDEGSR_H

@@ -88,6 +88,9 @@ class WatchyGSR{
         virtual void InsertAddWatchStyles();
         virtual void InsertDrawWatchStyle(uint8_t StyleID);
         virtual void InsertInitWatchStyle(uint8_t StyleID);
+        virtual void InsertHandleShowButtons() {}
+        virtual void InsertHandleFindPhone() {}
+        virtual void InsertHandleMedInfo() {}
         virtual void SaveProgress();
         virtual void NeedsSaving() final;
         virtual void InsertDrawWeather(uint8_t StyleID, bool Status = false);
@@ -262,7 +265,6 @@ class WatchyGSR{
         bool OkNVS(String FaceName);
         void SetNVS(String FaceName, bool Enabled = true);
         void NVSEmpty();
-        void SetTurbo();
         bool InTurbo();
         bool BedTime();
         bool UpRight();
@@ -276,7 +278,11 @@ class WatchyGSR{
         static bool readRawBatteryVoltage(float &rawBattery, bool useSecond = false);
         uint8_t getTXOffset(wifi_power_t Current);
         void DisplayInit(bool ForceDark = false);
+    public:
         void DisplayWake(bool Tapped = false);
+        void SetTurbo();
+        void KeepDisplayAwake();
+    private:
         void DisplaySleep();
         void ProcessWeather();
         String makeGeo(String inGeo, bool isLat);

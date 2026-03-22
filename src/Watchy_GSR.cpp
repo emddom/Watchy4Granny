@@ -1093,6 +1093,18 @@ void WatchyGSR::drawMenu(){
         case GSR_MENU_GAME:
             O = LGSR.GetID(Options.LanguageID,127);
             break;
+                case GSR_MENU_UTILS:
+            O = "Utilities";
+            break;
+        case GSR_MENU_UTILS_BTN:
+            O = "Show Buttons";
+            break;
+        case GSR_MENU_UTILS_FIND:
+            O = "Find Phone";
+            break;
+        case GSR_MENU_UTILS_MED:
+            O = "Med Info";
+            break;
         case GSR_MENU_OPTIONS:
             O = LGSR.GetID(Options.LanguageID,7);
             break;
@@ -2140,10 +2152,22 @@ void WatchyGSR::drawChargeMe(bool Dark){
   else if (voltage <= 3.30) percentage = 0;
   else percentage = (int)((voltage - 3.30) / (4.20 - 3.30) * 100.0);
 
-  String O = "Bat:" + String(percentage) + "%";
-  display.setFont(&Bronova_Regular13pt7b);
-  display.setTextColor(C);
-  drawData(O, 0, Design.Face.Date, WatchyGSR::dRIGHT, Design.Face.DateGutter);
+  if (Battery.Direction == 1 || Battery.State == 3) {
+      display.drawBitmap(Design.Status.BATTx, Design.Status.BATTy - 14, Charging, 40, 17, C);
+  } else {
+      int w = 34;
+      int h = 14;
+      int x = Design.Status.BATTx;
+      int y = Design.Status.BATTy - h + 2;
+
+      display.drawRect(x, y, w, h, C);
+      display.fillRect(x + w, y + 3, 3, 8, C);
+
+      int fillWidth = (w - 4) * percentage / 100;
+      if (fillWidth > 0) {
+          display.fillRect(x + 2, y + 2, fillWidth, h - 4, C);
+      }
+  }
 }
 
 void WatchyGSR::drawStatus(bool Dark){
@@ -2317,9 +2341,9 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
   int32_t Diff;
   String S = "";
   if (Darkness.Went && Options.SleepStyle == 4 && !Updates.Tapped) return; // No buttons unless a tapped happened.
-  if (!UpRight()) return; // Don't do buttons if not upright.
+  // if (!UpRight()) return; // Don't do buttons if not upright.
   if (Pressed < 5 && LastButton > 0 && (millis() - LastButton) < Debounce()) return;
-  if (Darkness.Went && !Darkness.Woke) { Darkness.Woke=true; Darkness.Last=millis(); Darkness.Tilt = Darkness.Last; UpdateUTC(); UpdateClock(); UpdateDisp=true; return; }  // Don't do the button, just exit.
+  if (Darkness.Went && !Darkness.Woke) { Darkness.Woke=true; Darkness.Last=millis(); Darkness.Tilt = Darkness.Last; UpdateUTC(); UpdateClock(); UpdateDisp=true; /* return; */ }  // Don't just exit, process the button!
   if ((OTAUpdate) && (Pressed == 3 || Pressed == 4)) return;  // Up/Down don't work in these modes.
 
   switch (Pressed){
@@ -2330,7 +2354,19 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
             UpdateDisp = true;  // Quick Update.
             SetTurbo();
           }else if (GuiMode == GSR_MENUON){
-              if (Menu.Item == GSR_MENU_OPTIONS && Menu.SubItem == 0){  // Options
+              if (Menu.Item == GSR_MENU_UTILS && Menu.SubItem == 0) {
+                  Menu.Item = GSR_MENU_UTILS_BTN;
+                  Menu.Style = GSR_MENU_INUTILS;
+                  Menu.SubItem = 0;
+                  Menu.SubSubItem = 0;
+                  DoHaptic = true;
+                  UpdateDisp = true;
+                  SetTurbo();
+              }else if (Menu.Style == GSR_MENU_INUTILS) {
+                  if (Menu.Item == GSR_MENU_UTILS_BTN) { GuiMode = GSR_WATCHON; InsertHandleShowButtons(); UpdateDisp = true; SetTurbo(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_FIND) { GuiMode = GSR_WATCHON; InsertHandleFindPhone(); UpdateDisp = true; SetTurbo(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_MED) { GuiMode = GSR_WATCHON; InsertHandleMedInfo(); UpdateDisp = true; SetTurbo(); }
+              }else if (Menu.Item == GSR_MENU_OPTIONS && Menu.SubItem == 0){  // Options
                   Menu.Item = GSR_MENU_STYL;
                   Menu.Style = GSR_MENU_INOPTIONS;
                   DoHaptic = true;
@@ -2801,6 +2837,14 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
               DoHaptic = true;
               UpdateDisp = true;          
               SetTurbo();
+          }else if (Menu.Style == GSR_MENU_INUTILS){
+              Menu.SubItem = 0;
+              Menu.SubSubItem = 0;
+              Menu.Item=GSR_MENU_UTILS;
+              Menu.Style=GSR_MENU_INNORMAL;
+              DoHaptic = true;
+              UpdateDisp = true;  // Quick Update.
+              SetTurbo();
           }else if (Menu.Style == GSR_MENU_INOPTIONS){  // Options
               Menu.SubItem = 0;
               Menu.SubSubItem = 0;
@@ -3168,15 +3212,19 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_ALARM1, GSR_MENU_TONES);
               }else if (Menu.Style == GSR_MENU_INTIMERS){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_TIMEDN, GSR_MENU_TIMEUP);
+              }else if (Menu.Style == GSR_MENU_INUTILS){
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
+              }else if (Menu.Style == GSR_MENU_INUTILS){
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);
               }else{
 #ifndef STABLEBMA_H_INCLUDED
-                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_ALARMS, GSR_MENU_OPTIONS);
-                  if (Menu.Item == GSR_MENU_GAME && Options.Game == 255) Menu.Item = roller(Menu.Item - 1, GSR_MENU_ALARMS, GSR_MENU_OPTIONS);
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_ALARMS, GSR_MENU_UTILS);
+                  if (Menu.Item == GSR_MENU_GAME && Options.Game == 255) Menu.Item = roller(Menu.Item - 1, GSR_MENU_ALARMS, GSR_MENU_UTILS);
 #else
-                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_STEPS, GSR_MENU_OPTIONS);
-                  if (Menu.Item == GSR_MENU_GAME && Options.Game == 255) Menu.Item = roller(Menu.Item - 1, GSR_MENU_STEPS, GSR_MENU_OPTIONS);
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_STEPS, GSR_MENU_UTILS);
+                  if (Menu.Item == GSR_MENU_GAME && Options.Game == 255) Menu.Item = roller(Menu.Item - 1, GSR_MENU_STEPS, GSR_MENU_UTILS);
 #endif
               }
               Menu.SubItem=0;
@@ -3500,15 +3548,19 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_ALARM1, GSR_MENU_TONES);
               }else if (Menu.Style == GSR_MENU_INTIMERS){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_TIMEDN, GSR_MENU_TIMEUP);
+              }else if (Menu.Style == GSR_MENU_INUTILS){
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
+              }else if (Menu.Style == GSR_MENU_INUTILS){
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_SCRN, GSR_MENU_UNVS);
               }else{
 #ifndef STABLEBMA_H_INCLUDED
-                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_ALARMS, GSR_MENU_OPTIONS);
-                  if (Menu.Item == GSR_MENU_GAME && Options.Game == 255) Menu.Item = roller(Menu.Item + 1, GSR_MENU_ALARMS, GSR_MENU_OPTIONS);
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_ALARMS, GSR_MENU_UTILS);
+                  if (Menu.Item == GSR_MENU_GAME && Options.Game == 255) Menu.Item = roller(Menu.Item + 1, GSR_MENU_ALARMS, GSR_MENU_UTILS);
 #else
-                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_STEPS, GSR_MENU_OPTIONS);
-                  if (Menu.Item == GSR_MENU_GAME && Options.Game == 255) Menu.Item = roller(Menu.Item + 1, GSR_MENU_STEPS, GSR_MENU_OPTIONS);
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_STEPS, GSR_MENU_UTILS);
+                  if (Menu.Item == GSR_MENU_GAME && Options.Game == 255) Menu.Item = roller(Menu.Item + 1, GSR_MENU_STEPS, GSR_MENU_UTILS);
 #endif
               }
               Menu.SubItem=0;
@@ -4858,6 +4910,7 @@ void WatchyGSR::DisplayInit(bool ForceDark){
 }
 
 void WatchyGSR::DisplayWake(bool Tapped){ Darkness.Woke=true; Darkness.Last=millis(); Darkness.Tilt = Darkness.Last; UpdateDisp = true; if (Tapped) Updates.Tapped=true; }
+void WatchyGSR::KeepDisplayAwake() { Darkness.Last = millis(); }
 
 void WatchyGSR::DisplaySleep(){ if (!Updates.Init) { Updates.Init = true; display.hibernate(); } }
 

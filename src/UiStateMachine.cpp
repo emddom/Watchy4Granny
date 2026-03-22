@@ -67,10 +67,12 @@ void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
         return;
     }
 
-    if (button == 1) { // Menu
+    // Fallback: pass button to the core WatchyGSR framework
+    usm->watchy->handleMenuButton(button);
+    
+    // If the framework successfully opened the menu, update our state
+    if (!usm->watchy->NoMenu()) {
         usm->setState(&menuState);
-    } else if (button == 2) { // Back
-        usm->setState(&showButtonsState);
     }
 }
 
@@ -100,6 +102,8 @@ void MedInfoState::enter(StateMachine* sm) {
 }
 
 void MedInfoState::execute(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    usm->watchy->KeepDisplayAwake();
 }
 
 void MedInfoState::exit(StateMachine* sm) {
@@ -121,6 +125,8 @@ void FindFoneState::enter(StateMachine* sm) {
 }
 
 void FindFoneState::execute(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    usm->watchy->KeepDisplayAwake();
 }
 
 void FindFoneState::exit(StateMachine* sm) {
@@ -178,6 +184,8 @@ void ShowButtonsState::execute(StateMachine* sm) {
         showButtonsStartTime = millis(); // Reset timer if a button is still held
     }
 
+    usm->watchy->KeepDisplayAwake();
+
     if (millis() - showButtonsStartTime >= 10000) {
         usm->setState(&watchfaceState);
     }
@@ -190,6 +198,9 @@ void ShowButtonsState::exit(StateMachine* sm) {
 }
 
 void ShowButtonsState::handleButton(StateMachine* sm, uint8_t button) {
+    // Ignore button presses for the first 1000ms to prevent bouncing from the menu selection exiting the state immediately
+    if (millis() - showButtonsStartTime < 1000) return;
+
     UiStateMachine* usm = (UiStateMachine*)sm;
     usm->setState(&watchfaceState);
 }

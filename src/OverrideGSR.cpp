@@ -240,21 +240,19 @@ bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &
       }
   }
   
-  if (SwitchNumber == 3) { // Up / SW3 (Now FindPhone)
-      callingForHelp = true;
-      helpRequested = false;
-      wifiFailed = false;
-      showingMedInfo = false;
-      Haptic = true;
-      Refresh = true;
-      AskForWiFi(); // This asks WatchyGSR to connect to WiFi and call InsertWiFi()
-      return true;
-  } else if (SwitchNumber == 4) { // Down / SW4 (Now MedInfo)
-      showingMedInfo = !showingMedInfo; // Toggle med info
-      Haptic = true;
-      Refresh = true;
-      return true;
-  }
   return false;
 }
+
+void OverrideGSR::InsertHandleShowButtons() {
+    uiSM.setState(&showButtonsState);
+}
+
+void OverrideGSR::InsertHandleFindPhone() {
+    uiSM.setState(&findFoneState);
+}
+
+void OverrideGSR::InsertHandleMedInfo() {
+    uiSM.setState(&medInfoState);
+}
+
 
