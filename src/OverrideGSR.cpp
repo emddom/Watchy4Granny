@@ -145,10 +145,10 @@ void OverrideGSR::drawWatchFace() {
             display.print(text);
         };
 
-        // Top Left corner (Physical SW1)
-        printTruncated("SW1: " + getLogicalName(WatchyGSR::getSWValue(1, 0, 0, 0)), 5, 40, 95);
-        // Bottom Left corner (Physical SW2)
-        printTruncated("SW2: " + getLogicalName(WatchyGSR::getSWValue(0, 1, 0, 0)), 5, 180, 95);
+        // Bottom Left corner (Physical SW1)
+        printTruncated("SW1: " + getLogicalName(WatchyGSR::getSWValue(1, 0, 0, 0)), 5, 180, 95);
+        // Top Left corner (Physical SW2)
+        printTruncated("SW2: " + getLogicalName(WatchyGSR::getSWValue(0, 1, 0, 0)), 5, 40, 95);
         // Top Right corner (Physical SW3)
         printTruncated("SW3: " + getLogicalName(WatchyGSR::getSWValue(0, 0, 1, 0)), 105, 40, 95);
         // Bottom Right corner (Physical SW4)

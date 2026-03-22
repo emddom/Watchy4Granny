@@ -17,8 +17,20 @@ void UiStateMachine::update() {
     if (Button) {
         uint8_t b = Button;
         Button = 0;
+        
+        // Vibrate shortly when a SWx has been pushed
+        watchy->VibeTo(true);
+        delay(50);
+        watchy->VibeTo(false);
+
         handleEvent(b);
     }
+
+    // Auto-return to watchfaceState if menu was closed by WatchyGSR
+    if (currentState == &menuState && watchy->NoMenu()) {
+        setState(&watchfaceState);
+    }
+
     StateMachine::update();
 }
 
