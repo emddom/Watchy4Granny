@@ -1,26 +1,49 @@
-# Watchy GSR Button User Guide
+# Watchy4Granny Button & Menu User Guide
 
-Assuming you are looking at the Watchy screen right-side up, the Watchy has 4 physical buttons labeled **SW1** through **SW4**. 
-
-Here is how they generally operate within the Watchy GSR framework:
-
-### **SW1: Menu / Enter (Bottom-Left Button)**
-*   **From the Watch Face:** Opens the main menu.
-*   **Inside the Menu:** Selects the highlighted option (acts as an "Enter" key).
-
-### **SW2: Back / Cancel (Top-Left Button)**
-*   **Inside the Menu:** Goes back to the previous menu or returns to the watch face.
-*   **From the Watch Face:** Toggles the **Battery Status** screen or backs out of other custom screens.
-
-### **SW3: Up (Top-Right Button)**
-*   **Inside the Menu:** Navigates up through the menu items.
-*   **From the Watch Face:** Toggles the **Medical Info** screen, displaying emergency contact details and medical information.
-
-### **SW4: Down (Bottom-Right Button)**
-*   **Inside the Menu:** Navigates down through the menu items.
-*   **From the Watch Face:** Triggers the **Find My Phone** feature. The watch will connect to WiFi and ping your phone via an IFTTT webhook.
+Looking at the Watchy screen right-side up, the watch has 4 physical buttons on its edges labeled **SW1** through **SW4**.
 
 ---
 
-**Note on Customization:** 
-The Watchy_GSR framework allows users to swap button orientations via the settings menu in case they are left-handed, which flips the Menu/Back (SW1/SW2) and Up/Down (SW3/SW4) sides.
+## 1. Physical Buttons Overview
+
+### **SW1: Menu / Enter (Bottom-Left Button)**
+* **From the Watch Face:** Opens the Root Menu (`Steps`, `Alarms`, `Timers`, `Options`, `Utilities`).
+* **Inside a Menu:** Enters the highlighted submenu, selects an action, or confirms an edited setting.
+* **In `Show Buttons` Overlay:** Dismisses the overlay and returns to the watch face (after a 1-second safety delay).
+
+### **SW2: Back / Cancel (Top-Left Button)**
+* **Inside a Menu:** Returns to the previous menu or exits the Root Menu back to the Watch Face.
+* **In Custom Screens (`Med Info`, `Find Phone`, `Show Buttons`):** Cancels/closes the screen and returns immediately to the Watch Face.
+
+### **SW3: Up (Top-Right Button)**
+* **Inside a Menu:** Scrolls **Up** (`Menu.Item - 1`) through menu items or increases the selected setting value.
+* **In `Suspended` Screen (While Charging):** Wakes the watch back to the normal Watch Face when the `*` indicator is blinking next to `SW3`.
+
+### **SW4: Down (Bottom-Right Button)**
+* **Inside a Menu:** Scrolls **Down** (`Menu.Item + 1`) through menu items or decreases the selected setting value.
+
+---
+
+## 2. Reaching the Assistive Features (`Menu -> Utilities`)
+
+To prevent accidental button presses while wearing the watch, the custom assistive features are located in the **Utilities** menu:
+
+1. Press **SW1 (Bottom-Left)** from the Watch Face to open the Root Menu.
+2. Press **SW3 (Up)** once (or **SW4 (Down)** to scroll) to highlight **`Utilities`**.
+3. Press **SW1 (Menu/Enter)** to open the `Utilities` submenu, then use **SW3 (Up)** / **SW4 (Down)** and **SW1 (Enter)** to launch:
+   * **`Show Buttons`**: Displays a 10-second on-screen corner legend showing what each physical button (`SW1`–`SW4`) does. Dismisses after 10 seconds or when any button is pressed.
+   * **`Find Phone`**: Connects to WiFi and triggers the IFTTT webhook to ring your phone (`FINDING PHONE` -> `PHONE PINGED!`). Press **SW2 (Back)** at any time to cancel/exit.
+   * **`Med Info`**: Displays emergency identification (Name, ID, Allergies, Birthdate). Press **SW2 (Back)** to return to the Watch Face.
+
+---
+
+## 3. Low-Battery Suspend Mode
+
+When the battery drops to or below the configured **Suspend Level** (`Menu -> Options -> Suspend Level`), the watch enters a low-power **`SUSPENDED`** screen to preserve the Real-Time Clock and prevent confusing frozen-time displays.
+* Plug the Watchy into a USB charger: the screen will update to **`CHARGING...`**, show when it was suspended, display saved steps/timers, and blink a `*` next to **SW3 (Top-Right)** with the prompt **`WAKE UP?`**.
+* Press **SW3 (Top-Right)** while charging to resume normal operation.
+
+---
+
+**Note on Left-Handed / Swapped Orientation:**
+The Watchy_GSR framework allows swapping button sides (`Menu -> Options -> Dexterity`) and flipping Menu/Back (`Menu -> Options -> Menu & Back`). The **`Show Buttons`** screen automatically adapts its corner labels to match your active button orientation.

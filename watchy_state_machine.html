@@ -24,44 +24,111 @@
     <body for="html-export">
       <div class="crossnote markdown-preview  ">
       
-<h1 id="watchy4granny-state-machines">Watchy4Granny State Machines </h1>
-<p>This document outlines the state machines controlling the Watchy4Granny device. You can visualize this directly in VSCode by opening the <strong>Markdown Preview</strong> (requires a Markdown Mermaid extension or native support).</p>
-<h2 id="state-diagram">State Diagram </h2>
+<h1 id="watchy4granny-state-machines">Watchy4Granny State Machines &amp; Menu Navigation </h1>
+<p>This document outlines the state machines and complete menu navigation hierarchy controlling the Watchy4Granny device.</p>
+<h2 id="menu-navigation-mindmap">1. Complete Menu Navigation Mindmap </h2>
+<div class="mermaid">flowchart LR
+    WF["Watch Face (WatchfaceState)"] --&gt;|"SW1 (Menu)"| ROOT["Root Menu (GSR_MENU_INNORMAL)"]
+    ROOT --&gt;|"SW2 (Back)"| WF
+
+    ROOT --&gt;|"0"| M_STEPS["0: Steps (GSR_MENU_STEPS)"]
+    ROOT --&gt;|"1"| M_ALARMS["1: Alarms (GSR_MENU_ALARMS)"]
+    ROOT --&gt;|"2"| M_TIMERS["2: Timers (GSR_MENU_TIMERS)"]
+    ROOT --&gt;|"3 (if game loaded)"| M_GAME["3: Game (GSR_MENU_GAME)"]
+    ROOT --&gt;|"4"| M_OPTIONS["4: Options (GSR_MENU_OPTIONS)"]
+    ROOT --&gt;|"5 (Custom)"| M_UTILS["5: Utilities (GSR_MENU_UTILS)"]
+
+    M_STEPS --&gt;|"SW1 (Edit)"| S_EDIT["Tomorrow Reset Time / Reset Today"]
+
+    subgraph SUB_UTILS["Utilities Submenu (GSR_MENU_INUTILS)"]
+        U_BTN["40: Show Buttons (GSR_MENU_UTILS_BTN)"]
+        U_FIND["41: Find Phone (GSR_MENU_UTILS_FIND)"]
+        U_MED["42: Med Info (GSR_MENU_UTILS_MED)"]
+    end
+    M_UTILS --&gt;|"SW1 (Enter)"| SUB_UTILS
+    U_BTN --&gt;|"SW1 -&gt; InsertHandleShowButtons()"| ST_BTN["ShowButtonsState (10s Overlay)"]
+    U_FIND --&gt;|"SW1 -&gt; InsertHandleFindPhone()"| ST_FIND["FindFoneState (WiFi + IFTTT Webhook)"]
+    U_MED --&gt;|"SW1 -&gt; InsertHandleMedInfo()"| ST_MED["MedInfoState (Emergency Medical Info)"]
+
+    subgraph SUB_ALARMS["Alarms Submenu (GSR_MENU_INALARMS)"]
+        A_1["6: Alarm 1 (Time, Repeats, Days, Active)"]
+        A_2["7: Alarm 2 (Time, Repeats, Days, Active)"]
+        A_3["8: Alarm 3 (Time, Repeats, Days, Active)"]
+        A_4["9: Alarm 4 (Time, Repeats, Days, Active)"]
+        A_TONES["10: Tone Repeats (Master)"]
+    end
+    M_ALARMS --&gt;|"SW1 (Enter)"| SUB_ALARMS
+
+    subgraph SUB_TIMERS["Timers Submenu (GSR_MENU_INTIMERS)"]
+        T_DN["11: Countdown Timer (GSR_MENU_TIMEDN)"]
+        T_CF["12: Countdown Config (GSR_MENU_TMEDCF)"]
+        T_UP["13: Elapsed Timer (GSR_MENU_TIMEUP)"]
+    end
+    M_TIMERS --&gt;|"SW1 (Enter)"| SUB_TIMERS
+
+    subgraph SUB_OPTIONS["Options Submenu (GSR_MENU_INOPTIONS)"]
+        O_UI["14-21: Watch Style, Language, Display, Border, Dexterity, Menu &amp; Back, Orientation, Time Mode"]
+        O_BEH["22-26: Feedback, Turbo Time, Screen Off, Performance, Information"]
+        O_TRBL["27: Troubleshoot (GSR_MENU_TRBL)"]
+        O_WIFI["28-33: WiFi Tx Power, Sync Watchy, Weather, Watchy Connect AP, OTA Update, OTA Website"]
+        O_SUSP["34: Suspend Level (GSR_MENU_SUSP - Custom Battery %)"]
+    end
+    M_OPTIONS --&gt;|"SW1 (Enter)"| SUB_OPTIONS
+
+    subgraph SUB_TROUBLE["Troubleshooting Submenu (GSR_MENU_INTROUBLE)"]
+        TR_SCRN["35: Reset Screen (GSR_MENU_SCRN)"]
+        TR_RSET["36: Watchy Reboot (GSR_MENU_RSET)"]
+        TR_TOFF["37: Edit RTC / Drift (GSR_MENU_TOFF)"]
+        TR_BERR["38: Battery Low Error (GSR_MENU_BERR)"]
+        TR_UNVS["39: Storage Settings / NVS (GSR_MENU_UNVS)"]
+    end
+    O_TRBL --&gt;|"SW1 (Enter)"| SUB_TROUBLE
+</div>
+<h2 id="state-diagram">2. Power &amp; UI State Machine Diagram </h2>
 <div class="mermaid">stateDiagram-v2
     direction TB
-    
-    %% Power State Machine
-    state "Power State Machine" as PSM {
-        [*] --&gt; SleepState : Initial state
-        
-        SleepState --&gt; AwakeState : handleWakeup() (Hardware interrupt / Timer)
+
+    state "Power State Machine (PowerStateMachine)" as PSM {
+        [*] --&gt; SleepState : Boot / Initial
+        SleepState --&gt; AwakeState : handleWakeup() (RTC Timer / Button EXT1)
         AwakeState --&gt; SleepState : shouldSleep() (!ActiveMode)
     }
 
-    %% UI State Machine (Active during AwakeState)
-    state "UI State Machine (Runs inside AwakeState)" as USM {
+    state "UI State Machine (UiStateMachine - Active during AwakeState)" as USM {
         [*] --&gt; WatchfaceState : Initial state
-        
-        WatchfaceState --&gt; MenuState : SW1 (Menu)
-        WatchfaceState --&gt; ShowButtonsState : SW2 (Back)
-        WatchfaceState --&gt; FindFoneState : SW3 (Up)
-        WatchfaceState --&gt; MedInfoState : SW4 (Down)
-        WatchfaceState --&gt; SuspendState : Battery &lt;= Suspend Level
-        
-        MenuState --&gt; WatchfaceState : watchy-&gt;NoMenu() (Menu Closed)
-        
-        ShowButtonsState --&gt; WatchfaceState : Any Button Press
-        ShowButtonsState --&gt; WatchfaceState : 10s Timeout
-        
-        MedInfoState --&gt; WatchfaceState : SW2 (Back)
-        
-        FindFoneState --&gt; WatchfaceState : SW2 (Back)
-        
-        SuspendState --&gt; WatchfaceState : SW3 (Up) while charging
+
+        WatchfaceState --&gt; MenuState : SW1 (Open Root Menu)
+        WatchfaceState --&gt; SuspendState : OnMinute (Battery % &lt;= SuspendLevel &amp; Not Charging)
+
+        state "Native Menu System (MenuState)" as MenuState {
+            [*] --&gt; RootMenu : GSR_MENU_INNORMAL (0..5)
+            RootMenu --&gt; AlarmsSubmenu : SW1 on 1: Alarms (6..10)
+            AlarmsSubmenu --&gt; RootMenu : SW2 (Back)
+
+            RootMenu --&gt; TimersSubmenu : SW1 on 2: Timers (11..13)
+            TimersSubmenu --&gt; RootMenu : SW2 (Back)
+
+            RootMenu --&gt; OptionsSubmenu : SW1 on 4: Options (14..34)
+            OptionsSubmenu --&gt; RootMenu : SW2 (Back)
+            OptionsSubmenu --&gt; TroubleSubmenu : SW1 on 27: Troubleshoot (35..39)
+            TroubleSubmenu --&gt; OptionsSubmenu : SW2 (Back)
+
+            RootMenu --&gt; UtilitiesSubmenu : SW1 on 5: Utilities (40..42)
+            UtilitiesSubmenu --&gt; RootMenu : SW2 (Back)
+        }
+
+        MenuState --&gt; WatchfaceState : SW2 from RootMenu / Auto-timeout (NoMenu())
+        MenuState --&gt; ShowButtonsState : Utilities -&gt; 40: Show Buttons (SW1)
+        MenuState --&gt; FindFoneState : Utilities -&gt; 41: Find Phone (SW1)
+        MenuState --&gt; MedInfoState : Utilities -&gt; 42: Med Info (SW1)
+
+        ShowButtonsState --&gt; WatchfaceState : Any Button (&gt;1s debounce) / 10s Timeout / New Minute
+        MedInfoState --&gt; WatchfaceState : SW2 (Back) / New Minute
+        FindFoneState --&gt; WatchfaceState : SW2 (Back) / Webhook Done + New Minute
+        SuspendState --&gt; WatchfaceState : SW3 (Up) while Charging (GetBatteryState() == 3)
     }
 
-    %% Relationships indicating that UI updates only when Awake
-    AwakeState --&gt; USM : powers
+    AwakeState --&gt; USM : ticks &amp; dispatches buttons
 </div><h3 id="powerstatemachine-summary">PowerStateMachine Summary </h3>
 <ul>
 <li><strong>SleepState</strong>: Puts the ESP32 into deep sleep to conserve battery.</li>
