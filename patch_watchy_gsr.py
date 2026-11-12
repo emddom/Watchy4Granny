@@ -56,17 +56,21 @@ case2_utils_replacement = """          }else if (Menu.Style == GSR_MENU_INUTILS)
 content = content.replace(case2_utils, case2_utils_replacement)
 
 # 5. Add handleMenuButton Case 3 (Up)
-case3_utils = """              }else if (Menu.Style == GSR_MENU_INTROUBLE){"""
+case3_utils = """              }else if (Menu.Style == GSR_MENU_INTROUBLE){
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 case3_utils_replacement = """              }else if (Menu.Style == GSR_MENU_INUTILS){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
-              }else if (Menu.Style == GSR_MENU_INTROUBLE){"""
+              }else if (Menu.Style == GSR_MENU_INTROUBLE){
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 content = content.replace(case3_utils, case3_utils_replacement)
 
 # 6. Add handleMenuButton Case 4 (Down)
-case4_utils = """              }else if (Menu.Style == GSR_MENU_INTROUBLE){"""
+case4_utils = """              }else if (Menu.Style == GSR_MENU_INTROUBLE){
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 case4_utils_replacement = """              }else if (Menu.Style == GSR_MENU_INUTILS){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
-              }else if (Menu.Style == GSR_MENU_INTROUBLE){"""
+              }else if (Menu.Style == GSR_MENU_INTROUBLE){
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 content = content.replace(case4_utils, case4_utils_replacement)
 
 with open('src/Watchy_GSR.cpp', 'w') as f:

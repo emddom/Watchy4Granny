@@ -3,3 +3,5 @@ Bin/
 Images/
 Watchface Addons/
 lib/
+backups/
+.claude/

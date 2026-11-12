@@ -3214,8 +3214,6 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_TIMEDN, GSR_MENU_TIMEUP);
               }else if (Menu.Style == GSR_MENU_INUTILS){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
-              }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);
               }else{
@@ -3548,8 +3546,6 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_ALARM1, GSR_MENU_TONES);
               }else if (Menu.Style == GSR_MENU_INTIMERS){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_TIMEDN, GSR_MENU_TIMEUP);
-              }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
               }else if (Menu.Style == GSR_MENU_INUTILS){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
