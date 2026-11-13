@@ -20,18 +20,20 @@ flowchart LR
     %% Steps Sub-actions
     M_STEPS -->|"SW1 (Edit)"| S_EDIT["Tomorrow Reset Time / Reset Today"]
 
-    %% Utilities Submenu (GSR_MENU_INUTILS: 40..43)
+    %% Utilities Submenu (GSR_MENU_INUTILS: 40..44)
     subgraph SUB_UTILS["Utilities Submenu (GSR_MENU_INUTILS)"]
         U_BTN["40: Show Buttons (GSR_MENU_UTILS_BTN)"]
         U_FIND["41: Find Phone (GSR_MENU_UTILS_FIND)"]
         U_MED["42: Med Info (GSR_MENU_UTILS_MED)"]
         U_WEAT["43: Weather (GSR_MENU_UTILS_WEAT)"]
+        U_BLE["44: BLE Remote (GSR_MENU_UTILS_BLE)"]
     end
     M_UTILS -->|"SW1 (Enter)"| SUB_UTILS
     U_BTN -->|"SW1 -> InsertHandleShowButtons()"| ST_BTN["ShowButtonsState (10s Overlay)"]
     U_FIND -->|"SW1 -> InsertHandleFindPhone()"| ST_FIND["FindFoneState (WiFi + IFTTT Webhook)"]
     U_MED -->|"SW1 -> InsertHandleMedInfo()"| ST_MED["MedInfoState (Emergency Medical Info)"]
     U_WEAT -->|"SW1 -> InsertHandleWeather()"| ST_WEAT["WeatherState (Open-Meteo Weather Report)"]
+    U_BLE -->|"SW1 -> InsertHandleBleRemote()"| ST_BLE["BleRemoteState (NimBLE HID Media Control)"]
 
     %% Alarms Submenu (GSR_MENU_INALARMS: 6..10)
     subgraph SUB_ALARMS["Alarms Submenu (GSR_MENU_INALARMS)"]
@@ -103,7 +105,7 @@ stateDiagram-v2
             OptionsSubmenu --> TroubleSubmenu : SW1 on 27: Troubleshoot (35..39)
             TroubleSubmenu --> OptionsSubmenu : SW2 (Back)
 
-            RootMenu --> UtilitiesSubmenu : SW1 on 5: Utilities (40..43)
+            RootMenu --> UtilitiesSubmenu : SW1 on 5: Utilities (40..44)
             UtilitiesSubmenu --> RootMenu : SW2 (Back)
         }
 
@@ -112,11 +114,14 @@ stateDiagram-v2
         MenuState --> FindFoneState : Utilities -> 41: Find Phone (SW1)
         MenuState --> MedInfoState : Utilities -> 42: Med Info (SW1)
         MenuState --> WeatherState : Utilities -> 43: Weather (SW1)
+        MenuState --> BleRemoteState : Utilities -> 44: BLE Remote (SW1)
 
         ShowButtonsState --> WatchfaceState : Any Button (>1s debounce) / 10s Timeout / New Minute
         MedInfoState --> WatchfaceState : SW2 (Back) / New Minute
         WeatherState --> WatchfaceState : SW2 (Back) / New Minute (when idle)
         WeatherState --> WeatherState : SW3 (Up - Manual Weather Refresh)
+        BleRemoteState --> WatchfaceState : SW2 (Back - Stops BLE Advertising)
+        BleRemoteState --> BleRemoteState : SW3 (Vol+) / SW4 (Vol-) / SW1 (Play-Pause)
         FindFoneState --> WatchfaceState : SW2 (Back) / Webhook Done + New Minute
         SuspendState --> WatchfaceState : SW3 (Up) while Charging (GetBatteryState() == 3)
     }
@@ -134,5 +139,6 @@ stateDiagram-v2
 * **ShowButtonsState**: Triggered via `Menu -> Utilities -> Show Buttons`. Displays an overlay mapping `SW1`–`SW4` physical buttons to their logical functions. Ignores button inputs for the first 1 second to prevent bouncing from menu selection, then dismisses on any button press or a 10s timeout.
 * **MedInfoState**: Triggered via `Menu -> Utilities -> Med Info`. Displays emergency medical info.
 * **WeatherState**: Triggered via `Menu -> Utilities -> Weather`. Displays a full-screen weather report (icon, temperature, sky condition, feels-like, humidity, wind, and pressure) fetched from Open-Meteo, automatically requesting an update if stale and allowing manual refresh via `SW3`.
+* **BleRemoteState**: Triggered via `Menu -> Utilities -> BLE Remote`. Starts a `NimBLE` HID Consumer Control server (`Watchy4Granny`) to send `Volume Up` (`SW3`), `Volume Down` (`SW4`), and `Play/Pause` (`SW1`) media keys to a paired Android phone; exits and stops BLE on `SW2`.
 * **FindFoneState**: Triggered via `Menu -> Utilities -> Find Phone`. Connects to WiFi and pings the user's phone via IFTTT.
 * **SuspendState**: A low-power lock screen triggered when the battery drops to/below the configured suspend threshold (`Options -> Suspend Level`). Can be awakened via `SW3` while charging.

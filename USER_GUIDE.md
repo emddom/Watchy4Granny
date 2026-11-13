@@ -36,6 +36,7 @@ To prevent accidental button presses while wearing the watch, the custom assisti
    * **`Find Phone`**: Connects to WiFi and triggers the IFTTT webhook to ring your phone (`FINDING PHONE` -> `PHONE PINGED!`). Press **SW2 (Back)** at any time to cancel/exit.
    * **`Med Info`**: Displays emergency identification (Name, ID, Allergies, Birthdate). Press **SW2 (Back)** to return to the Watch Face.
    * **`Weather`**: Displays the dedicated Open-Meteo weather report (condition icon, temperature in °C, sky condition, feels-like, humidity, wind speed in m/s, and pressure). Automatically fetches fresh data over WiFi if needed; press **SW3 (Up)** to manually refresh or **SW2 (Back)** to return to the Watch Face.
+   * **`BLE Remote`**: Starts Bluetooth Low Energy (BLE) HID advertising as **`Watchy4Granny`**. Pair with it from your Android phone's Bluetooth settings, then use **SW3 (Up)** for **Volume Up**, **SW4 (Down)** for **Volume Down**, **SW1 (Enter)** for **Play/Pause**, and **SW2 (Back)** to disconnect and return to the Watch Face.
 
 ---
 

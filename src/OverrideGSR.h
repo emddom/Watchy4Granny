@@ -27,6 +27,7 @@ extern RTC_DATA_ATTR bool showingMedInfo;
 extern RTC_DATA_ATTR bool isSuspended;
 extern RTC_DATA_ATTR bool showingButtons;
 extern RTC_DATA_ATTR bool showingWeather;
+extern bool showingBleRemote;
 extern RTC_DATA_ATTR time_t suspendTime;
 
 
@@ -47,6 +48,11 @@ class OverrideGSR : public WatchyGSR {
     void InsertHandleFindPhone() override;
     void InsertHandleMedInfo() override;
     void InsertHandleWeather() override;
+    void InsertHandleBleRemote() override;
+
+    void startBleHid();
+    void stopBleHid();
+    void sendBleMediaKey(uint8_t mask, const char* label);
 };
 
 #endif // OVERRIDEGSR_H

@@ -9,6 +9,7 @@ FindFoneState findFoneState;
 SuspendState suspendState;
 ShowButtonsState showButtonsState;
 WeatherState weatherState;
+BleRemoteState bleRemoteState;
 
 // UiStateMachine implementation
 UiStateMachine::UiStateMachine(OverrideGSR* w) : StateMachine(&watchfaceState), watchy(w) {
@@ -66,6 +67,7 @@ void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
         else if (showingMedInfo) usm->setState(&medInfoState);
         else if (callingForHelp) usm->setState(&findFoneState);
         else if (showingWeather) usm->setState(&weatherState);
+        else if (showingBleRemote) usm->setState(&bleRemoteState);
         return;
     }
 
@@ -234,4 +236,50 @@ void WeatherState::handleButton(StateMachine* sm, uint8_t button) {
         usm->watchy->StartWeather();
         usm->watchy->UpdateScreen();
     }
+}
+
+// BleRemoteState implementation
+static unsigned long bleRemoteEnterTime = 0;
+
+void BleRemoteState::enter(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    showingBleRemote = true;
+    bleRemoteEnterTime = millis();
+    usm->watchy->startBleHid();
+    usm->watchy->UpdateScreen();
+}
+
+void BleRemoteState::execute(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    usm->watchy->KeepDisplayAwake();
+}
+
+void BleRemoteState::exit(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    showingBleRemote = false;
+    usm->watchy->stopBleHid();
+}
+
+void BleRemoteState::handleButton(StateMachine* sm, uint8_t button) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    if (button == 2) { // Back / SW2 -> Exit BLE Remote
+        while (usm->watchy->getButtonPins() != 0) { delay(10); }
+        usm->watchy->SetTurbo();
+        Button = 0;
+        usm->setState(&watchfaceState);
+        return;
+    } else if (button == 3) { // Up / SW3 -> Volume Up
+        usm->watchy->sendBleMediaKey(0x01, "VOLUME UP");
+    } else if (button == 4) { // Down / SW4 -> Volume Down
+        usm->watchy->sendBleMediaKey(0x02, "VOLUME DOWN");
+    } else if (button == 1 && (millis() - bleRemoteEnterTime > 500)) { // Menu / SW1 -> Play / Pause
+        usm->watchy->sendBleMediaKey(0x04, "PLAY / PAUSE");
+    }
+
+    // Wait for button release so the background KeysCheck task cannot queue a duplicate press during e-paper refresh
+    while (usm->watchy->getButtonPins() != 0) {
+        delay(10);
+    }
+    usm->watchy->SetTurbo();
+    Button = 0;
 }

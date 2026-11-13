@@ -45,12 +45,14 @@
         U_FIND["41: Find Phone (GSR_MENU_UTILS_FIND)"]
         U_MED["42: Med Info (GSR_MENU_UTILS_MED)"]
         U_WEAT["43: Weather (GSR_MENU_UTILS_WEAT)"]
+        U_BLE["44: BLE Remote (GSR_MENU_UTILS_BLE)"]
     end
     M_UTILS --&gt;|"SW1 (Enter)"| SUB_UTILS
     U_BTN --&gt;|"SW1 -&gt; InsertHandleShowButtons()"| ST_BTN["ShowButtonsState (10s Overlay)"]
     U_FIND --&gt;|"SW1 -&gt; InsertHandleFindPhone()"| ST_FIND["FindFoneState (WiFi + IFTTT Webhook)"]
     U_MED --&gt;|"SW1 -&gt; InsertHandleMedInfo()"| ST_MED["MedInfoState (Emergency Medical Info)"]
     U_WEAT --&gt;|"SW1 -&gt; InsertHandleWeather()"| ST_WEAT["WeatherState (Open-Meteo Weather Report)"]
+    U_BLE --&gt;|"SW1 -&gt; InsertHandleBleRemote()"| ST_BLE["BleRemoteState (NimBLE HID Media Control)"]
 
     subgraph SUB_ALARMS["Alarms Submenu (GSR_MENU_INALARMS)"]
         A_1["6: Alarm 1 (Time, Repeats, Days, Active)"]
@@ -115,7 +117,7 @@
             OptionsSubmenu --&gt; TroubleSubmenu : SW1 on 27: Troubleshoot (35..39)
             TroubleSubmenu --&gt; OptionsSubmenu : SW2 (Back)
 
-            RootMenu --&gt; UtilitiesSubmenu : SW1 on 5: Utilities (40..43)
+            RootMenu --&gt; UtilitiesSubmenu : SW1 on 5: Utilities (40..44)
             UtilitiesSubmenu --&gt; RootMenu : SW2 (Back)
         }
 
@@ -124,11 +126,14 @@
         MenuState --&gt; FindFoneState : Utilities -&gt; 41: Find Phone (SW1)
         MenuState --&gt; MedInfoState : Utilities -&gt; 42: Med Info (SW1)
         MenuState --&gt; WeatherState : Utilities -&gt; 43: Weather (SW1)
+        MenuState --&gt; BleRemoteState : Utilities -&gt; 44: BLE Remote (SW1)
 
         ShowButtonsState --&gt; WatchfaceState : Any Button (&gt;1s debounce) / 10s Timeout / New Minute
         MedInfoState --&gt; WatchfaceState : SW2 (Back) / New Minute
         WeatherState --&gt; WatchfaceState : SW2 (Back) / New Minute (when idle)
         WeatherState --&gt; WeatherState : SW3 (Up - Manual Weather Refresh)
+        BleRemoteState --&gt; WatchfaceState : SW2 (Back - Stops BLE Advertising)
+        BleRemoteState --&gt; BleRemoteState : SW3 (Vol+) / SW4 (Vol-) / SW1 (Play-Pause)
         FindFoneState --&gt; WatchfaceState : SW2 (Back) / Webhook Done + New Minute
         SuspendState --&gt; WatchfaceState : SW3 (Up) while Charging (GetBatteryState() == 3)
     }

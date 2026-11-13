@@ -25,6 +25,9 @@ draw_menu_utils = """        case GSR_MENU_UTILS:
         case GSR_MENU_UTILS_WEAT:
             O = "Weather";
             break;
+        case GSR_MENU_UTILS_BLE:
+            O = "BLE Remote";
+            break;
 """
 content = content.replace('case GSR_MENU_OPTIONS:', draw_menu_utils + '        case GSR_MENU_OPTIONS:')
 
@@ -43,6 +46,7 @@ case1_utils_replacement = """              if (Menu.Item == GSR_MENU_UTILS && Me
                   else if (Menu.Item == GSR_MENU_UTILS_FIND) { InsertHandleFindPhone(); }
                   else if (Menu.Item == GSR_MENU_UTILS_MED) { InsertHandleMedInfo(); }
                   else if (Menu.Item == GSR_MENU_UTILS_WEAT) { InsertHandleWeather(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_BLE) { InsertHandleBleRemote(); }
               }else if (Menu.Item == GSR_MENU_OPTIONS && Menu.SubItem == 0){  // Options"""
 content = content.replace(case1_utils, case1_utils_replacement)
 
@@ -63,7 +67,7 @@ content = content.replace(case2_utils, case2_utils_replacement)
 case3_utils = """              }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 case3_utils_replacement = """              }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_WEAT);
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_BLE);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 content = content.replace(case3_utils, case3_utils_replacement)
@@ -72,7 +76,7 @@ content = content.replace(case3_utils, case3_utils_replacement)
 case4_utils = """              }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 case4_utils_replacement = """              }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_WEAT);
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_BLE);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 content = content.replace(case4_utils, case4_utils_replacement)

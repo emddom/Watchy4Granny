@@ -92,6 +92,7 @@ class WatchyGSR{
         virtual void InsertHandleFindPhone() {}
         virtual void InsertHandleMedInfo() {}
         virtual void InsertHandleWeather() {}
+        virtual void InsertHandleBleRemote() {}
         virtual void SaveProgress();
         virtual void NeedsSaving() final;
         virtual void InsertDrawWeather(uint8_t StyleID, bool Status = false);

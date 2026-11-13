@@ -1,5 +1,7 @@
 #include "OverrideGSR.h"
 #include "UiStateMachine.h"
+#include <NimBLEDevice.h>
+#include <NimBLEHIDDevice.h>
 
 RTC_DATA_ATTR bool callingForHelp = false;
 RTC_DATA_ATTR bool helpRequested = false;
@@ -8,7 +10,52 @@ RTC_DATA_ATTR bool showingMedInfo = false;
 RTC_DATA_ATTR bool isSuspended = false;
 RTC_DATA_ATTR bool showingButtons = false;
 RTC_DATA_ATTR bool showingWeather = false;
+bool showingBleRemote = false;
 RTC_DATA_ATTR time_t suspendTime = 0;
+
+static bool bleInitialized = false;
+static bool bleConnected = false;
+static String bleLastAction = "Ready";
+static NimBLEServer* bleServer = nullptr;
+static NimBLEHIDDevice* bleHid = nullptr;
+static NimBLECharacteristic* bleInputMedia = nullptr;
+
+// Standard USB HID Consumer Control Report Descriptor (Report ID 1: 4 media keys + 4 padding bits)
+static const uint8_t hidMediaReportDescriptor[] = {
+    0x05, 0x0C,        // Usage Page (Consumer)
+    0x09, 0x01,        // Usage (Consumer Control)
+    0xA1, 0x01,        // Collection (Application)
+    0x85, 0x01,        //   Report ID (1)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x25, 0x01,        //   Logical Maximum (1)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x04,        //   Report Count (4)
+    0x09, 0xE9,        //   Usage (Volume Increment - bit 0 = 0x01)
+    0x09, 0xEA,        //   Usage (Volume Decrement - bit 1 = 0x02)
+    0x09, 0xCD,        //   Usage (Play/Pause       - bit 2 = 0x04)
+    0x09, 0xE2,        //   Usage (Mute             - bit 3 = 0x08)
+    0x81, 0x02,        //   Input (Data,Var,Abs)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x04,        //   Report Count (4)
+    0x81, 0x03,        //   Input (Const,Var,Abs)
+    0xC0               // End Collection
+};
+
+class WatchyBleServerCallbacks : public NimBLEServerCallbacks {
+    void onConnect(NimBLEServer* pServer) {
+        bleConnected = true;
+        bleLastAction = "Connected";
+        if (uiSM.watchy) uiSM.watchy->UpdateScreen();
+    }
+    void onDisconnect(NimBLEServer* pServer) {
+        bleConnected = false;
+        bleLastAction = "Disconnected";
+        if (showingBleRemote) {
+            NimBLEDevice::startAdvertising();
+        }
+        if (uiSM.watchy) uiSM.watchy->UpdateScreen();
+    }
+};
 
 void OverrideGSR::InsertDefaults() {
     SetWeatherScale(true); // Default to Metric (Celsius, m/s)
@@ -74,6 +121,7 @@ void OverrideGSR::InsertOnMinute() {
 
 bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
     if (showingButtons) return true;
+    if (showingBleRemote) return true;
     if (showingWeather && IsWeatherLoading()) return true;
     if (isSuspended && GetBatteryState() == 3) {
         return true; // Keep awake when charging to animate blinking character
@@ -274,6 +322,32 @@ void OverrideGSR::drawWatchFace() {
             display.setCursor(5, 190);
             display.print("Pressure: " + String(GetWeatherPressure()) + " hPa");
         }
+    } else if (showingBleRemote) {
+        display.fillScreen(BackColor());
+        display.setFont(&aAntiCorona15pt7b);
+        display.setTextColor(ForeColor());
+
+        String title = "BLE REMOTE";
+        int16_t x1, y1;
+        uint16_t w, h;
+        display.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
+        display.setCursor((200 - w) / 2, 24);
+        display.print(title);
+
+        display.setFont(&aAntiCorona10pt7b);
+        display.setCursor(5, 55);
+        display.print("ID: Watchy4Granny");
+
+        display.setCursor(5, 82);
+        display.print(String("BLE: ") + (bleConnected ? "CONNECTED" : "PAIR / WAIT"));
+
+        display.setCursor(5, 112);
+        display.print("Sent: " + bleLastAction);
+
+        display.setCursor(5, 152);
+        display.print("SW3: Vol+  SW4: Vol-");
+        display.setCursor(5, 180);
+        display.print("SW1: Play  SW2: Exit");
     } else if (callingForHelp) {
         display.fillScreen(BackColor());
         display.setFont(&aAntiCorona16pt7b);
@@ -350,6 +424,72 @@ void OverrideGSR::InsertHandleMedInfo() {
 
 void OverrideGSR::InsertHandleWeather() {
     uiSM.setState(&weatherState);
+}
+
+void OverrideGSR::InsertHandleBleRemote() {
+    uiSM.setState(&bleRemoteState);
+}
+
+void OverrideGSR::startBleHid() {
+    endWiFi();
+    bleLastAction = "Ready";
+    if (!bleInitialized) {
+        NimBLEDevice::init("Watchy4Granny");
+        NimBLEDevice::setSecurityAuth(true, false, true);
+
+        bleServer = NimBLEDevice::createServer();
+        bleServer->setCallbacks(new WatchyBleServerCallbacks());
+
+        bleHid = new NimBLEHIDDevice(bleServer);
+        bleInputMedia = bleHid->inputReport(1);
+
+        bleHid->manufacturer()->setValue("Watchy4Granny");
+        bleHid->pnp(0x02, 0xe502, 0xa111, 0x0210);
+        bleHid->hidInfo(0x00, 0x01);
+        bleHid->reportMap((uint8_t*)hidMediaReportDescriptor, sizeof(hidMediaReportDescriptor));
+        bleHid->startServices();
+
+        NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+        pAdvertising->setAppearance(HID_KEYBOARD);
+        pAdvertising->addServiceUUID(bleHid->hidService()->getUUID());
+        pAdvertising->setScanResponse(true);
+        pAdvertising->start();
+
+        bleInitialized = true;
+    } else {
+        NimBLEDevice::startAdvertising();
+    }
+}
+
+void OverrideGSR::stopBleHid() {
+    if (bleInitialized) {
+        NimBLEDevice::stopAdvertising();
+        if (bleServer && bleServer->getConnectedCount() > 0) {
+            std::vector<uint16_t> peers = bleServer->getPeerDevices();
+            for (uint16_t connId : peers) {
+                bleServer->disconnect(connId);
+            }
+        }
+        bleConnected = false;
+    }
+}
+
+void OverrideGSR::sendBleMediaKey(uint8_t mask, const char* label) {
+    if (!bleConnected || bleInputMedia == nullptr) {
+        bleLastAction = "Not Connected";
+        UpdateScreen();
+        return;
+    }
+    uint8_t report = mask;
+    bleInputMedia->setValue(&report, 1);
+    bleInputMedia->notify();
+    delay(30);
+    report = 0x00;
+    bleInputMedia->setValue(&report, 1);
+    bleInputMedia->notify();
+
+    bleLastAction = String(label);
+    UpdateScreen();
 }
 
 
