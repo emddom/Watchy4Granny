@@ -13,10 +13,11 @@ Looking at the Watchy screen right-side up, the watch has 4 physical buttons on 
 
 ### **SW2: Back / Cancel (Top-Left Button)**
 * **Inside a Menu:** Returns to the previous menu or exits the Root Menu back to the Watch Face.
-* **In Custom Screens (`Med Info`, `Find Phone`, `Show Buttons`):** Cancels/closes the screen and returns immediately to the Watch Face.
+* **In Custom Screens (`Med Info`, `Weather`, `Find Phone`, `Show Buttons`):** Cancels/closes the screen and returns immediately to the Watch Face.
 
 ### **SW3: Up (Top-Right Button)**
 * **Inside a Menu:** Scrolls **Up** (`Menu.Item - 1`) through menu items or increases the selected setting value.
+* **In `Weather` Screen:** Triggers an immediate WiFi weather refresh from Open-Meteo.
 * **In `Suspended` Screen (While Charging):** Wakes the watch back to the normal Watch Face when the `*` indicator is blinking next to `SW3`.
 
 ### **SW4: Down (Bottom-Right Button)**
@@ -34,6 +35,7 @@ To prevent accidental button presses while wearing the watch, the custom assisti
    * **`Show Buttons`**: Displays a 10-second on-screen corner legend showing what each physical button (`SW1`–`SW4`) does. Dismisses after 10 seconds or when any button is pressed.
    * **`Find Phone`**: Connects to WiFi and triggers the IFTTT webhook to ring your phone (`FINDING PHONE` -> `PHONE PINGED!`). Press **SW2 (Back)** at any time to cancel/exit.
    * **`Med Info`**: Displays emergency identification (Name, ID, Allergies, Birthdate). Press **SW2 (Back)** to return to the Watch Face.
+   * **`Weather`**: Displays the dedicated Open-Meteo weather report (condition icon, temperature, sky condition, feels-like, humidity, wind speed, and pressure). Automatically fetches fresh data over WiFi if needed; press **SW3 (Up)** to manually refresh or **SW2 (Back)** to return to the Watch Face.
 
 ---
 

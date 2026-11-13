@@ -7,7 +7,12 @@ RTC_DATA_ATTR bool wifiFailed = false;
 RTC_DATA_ATTR bool showingMedInfo = false;
 RTC_DATA_ATTR bool isSuspended = false;
 RTC_DATA_ATTR bool showingButtons = false;
+RTC_DATA_ATTR bool showingWeather = false;
 RTC_DATA_ATTR time_t suspendTime = 0;
+
+void OverrideGSR::InsertInitWatchStyle(uint8_t StyleID) {
+    WantWeather(true);
+}
 
 void OverrideGSR::InsertWiFi() {
   if (callingForHelp) {
@@ -50,17 +55,22 @@ void OverrideGSR::InsertOnMinute() {
   }
 
   // Clear the messages when the minute changes so the normal clock returns
-  if (helpRequested || wifiFailed || showingMedInfo || showingButtons) {
+  if (helpRequested || wifiFailed || showingMedInfo || showingButtons || (showingWeather && !IsWeatherLoading())) {
      helpRequested = false;
      wifiFailed = false;
      showingMedInfo = false;
      showingButtons = false;
+     showingWeather = false;
+     if (uiSM.getCurrentState() != &watchfaceState && !isSuspended) {
+         uiSM.setState(&watchfaceState);
+     }
      UpdateScreen();
   }
 }
 
 bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
     if (showingButtons) return true;
+    if (showingWeather && IsWeatherLoading()) return true;
     if (isSuspended && GetBatteryState() == 3) {
         return true; // Keep awake when charging to animate blinking character
     }
@@ -188,6 +198,74 @@ void OverrideGSR::drawWatchFace() {
         display.print(line3);
         display.setCursor(5, 160);
         display.print(line4);
+    } else if (showingWeather) {
+        display.fillScreen(BackColor());
+        display.setFont(&aAntiCorona15pt7b);
+        display.setTextColor(ForeColor());
+
+        String title = IsWeatherLoading() ? "WEATHER *" : "WEATHER";
+        int16_t x1, y1;
+        uint16_t w, h;
+        display.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
+        display.setCursor((200 - w) / 2, 24);
+        display.print(title);
+
+        if (!IsWeatherReady()) {
+            display.setFont(&aAntiCorona12pt7b);
+            if (IsWeatherLoading()) {
+                display.setCursor(20, 95);
+                display.print("FETCHING...");
+                display.setCursor(15, 130);
+                display.print("PLEASE WAIT");
+            } else {
+                display.setCursor(20, 85);
+                display.print("NO DATA YET");
+                display.setFont(&aAntiCorona10pt7b);
+                display.setCursor(15, 120);
+                display.print("Check WiFi or");
+                display.setCursor(15, 148);
+                display.print("Press UP (SW3)");
+            }
+        } else {
+            uint16_t cond = GetWeatherID();
+            const unsigned char* icon = getWeatherIcon(cond, false);
+            if (icon != nullptr) {
+                display.drawBitmap(8, 34, icon, 48, 32, ForeColor());
+            }
+
+            display.setFont(&aAntiCorona16pt7b);
+            String tempStr = String(GetWeatherTemperature()) + (IsMetric() ? " C" : " F");
+            display.setCursor(64, 60);
+            display.print(tempStr);
+
+            auto getConditionLabel = [](uint16_t id) -> String {
+                if (id == 0 || id == 800) return "Clear";
+                if (id == 1 || id == 2 || id == 801) return "Partly Cloudy";
+                if (id == 3 || id > 801) return "Overcast";
+                if (id == 45 || id == 48 || (id >= 700 && id < 800)) return "Fog / Mist";
+                if ((id >= 51 && id <= 57) || (id >= 300 && id < 400)) return "Drizzle";
+                if ((id >= 61 && id <= 65) || (id >= 80 && id <= 82) || (id >= 500 && id < 600)) return "Rain";
+                if ((id >= 66 && id <= 77) || id == 85 || id == 86 || (id >= 600 && id < 700)) return "Snow";
+                if (id >= 95 || (id >= 200 && id < 300)) return "Thunderstorm";
+                return "Code " + String(id);
+            };
+
+            display.setFont(&aAntiCorona10pt7b);
+            display.setCursor(5, 90);
+            display.print("Sky: " + getConditionLabel(cond));
+
+            display.setCursor(5, 115);
+            display.print("Feels Like: " + String(GetWeatherTemperatureFeelsLike()) + (IsMetric() ? " C" : " F"));
+
+            display.setCursor(5, 140);
+            display.print("Humidity: " + String(GetWeatherHumidity()) + "%");
+
+            display.setCursor(5, 165);
+            display.print("Wind: " + String((int)GetWeatherWindSpeed()) + (IsMetric() ? " km/h" : " mph"));
+
+            display.setCursor(5, 190);
+            display.print("Pressure: " + String(GetWeatherPressure()) + " hPa");
+        }
     } else if (callingForHelp) {
         display.fillScreen(BackColor());
         display.setFont(&aAntiCorona16pt7b);
@@ -225,9 +303,10 @@ bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &
       return true; // Block other interactions while suspended
   }
 
-  if (showingMedInfo || callingForHelp || helpRequested || wifiFailed) {
+  if (showingMedInfo || showingWeather || callingForHelp || helpRequested || wifiFailed) {
       if (SwitchNumber == 2) { // Back / SW2
           showingMedInfo = false;
+          showingWeather = false;
           if (callingForHelp) {
               endWiFi();
           }
@@ -237,6 +316,12 @@ bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &
           Haptic = true;
           Refresh = true;
           return true; // We handled the button press
+      }
+      if (showingWeather && SwitchNumber == 3) { // Up / SW3 -> Refresh weather
+          StartWeather();
+          Haptic = true;
+          Refresh = true;
+          return true;
       }
   }
   
@@ -253,6 +338,10 @@ void OverrideGSR::InsertHandleFindPhone() {
 
 void OverrideGSR::InsertHandleMedInfo() {
     uiSM.setState(&medInfoState);
+}
+
+void OverrideGSR::InsertHandleWeather() {
+    uiSM.setState(&weatherState);
 }
 
 

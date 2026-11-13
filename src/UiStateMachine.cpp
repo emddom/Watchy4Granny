@@ -8,6 +8,7 @@ MedInfoState medInfoState;
 FindFoneState findFoneState;
 SuspendState suspendState;
 ShowButtonsState showButtonsState;
+WeatherState weatherState;
 
 // UiStateMachine implementation
 UiStateMachine::UiStateMachine(OverrideGSR* w) : StateMachine(&watchfaceState), watchy(w) {
@@ -64,6 +65,7 @@ void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
         if (isSuspended) usm->setState(&suspendState);
         else if (showingMedInfo) usm->setState(&medInfoState);
         else if (callingForHelp) usm->setState(&findFoneState);
+        else if (showingWeather) usm->setState(&weatherState);
         return;
     }
 
@@ -203,4 +205,33 @@ void ShowButtonsState::handleButton(StateMachine* sm, uint8_t button) {
 
     UiStateMachine* usm = (UiStateMachine*)sm;
     usm->setState(&watchfaceState);
+}
+
+// WeatherState implementation
+void WeatherState::enter(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    showingWeather = true;
+    if (!usm->watchy->IsWeatherAvailable()) {
+        usm->watchy->StartWeather();
+    }
+    usm->watchy->UpdateScreen();
+}
+
+void WeatherState::execute(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    usm->watchy->KeepDisplayAwake();
+}
+
+void WeatherState::exit(StateMachine* sm) {
+    showingWeather = false;
+}
+
+void WeatherState::handleButton(StateMachine* sm, uint8_t button) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    if (button == 2) { // Back
+        usm->setState(&watchfaceState);
+    } else if (button == 3) { // Up -> manual refresh
+        usm->watchy->StartWeather();
+        usm->watchy->UpdateScreen();
+    }
 }

@@ -11,7 +11,8 @@ enum UiStateEnum {
     US_MEDINFO,
     US_FINDFONE,
     US_SUSPEND,
-    US_SHOW_BUTTONS
+    US_SHOW_BUTTONS,
+    US_WEATHER
 };
 
 class WatchfaceState : public State {
@@ -62,6 +63,14 @@ public:
     void handleButton(StateMachine* sm, uint8_t button) override;
 };
 
+class WeatherState : public State {
+public:
+    void enter(StateMachine* sm) override;
+    void execute(StateMachine* sm) override;
+    void exit(StateMachine* sm) override;
+    void handleButton(StateMachine* sm, uint8_t button) override;
+};
+
 class UiStateMachine : public StateMachine {
 public:
     UiStateMachine(OverrideGSR* watchy);
@@ -78,5 +87,6 @@ extern MedInfoState medInfoState;
 extern FindFoneState findFoneState;
 extern SuspendState suspendState;
 extern ShowButtonsState showButtonsState;
+extern WeatherState weatherState;
 
 #endif // UISTATEMACHINE_H

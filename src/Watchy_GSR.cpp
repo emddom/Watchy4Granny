@@ -1105,6 +1105,9 @@ void WatchyGSR::drawMenu(){
         case GSR_MENU_UTILS_MED:
             O = "Med Info";
             break;
+        case GSR_MENU_UTILS_WEAT:
+            O = "Weather";
+            break;
         case GSR_MENU_OPTIONS:
             O = LGSR.GetID(Options.LanguageID,7);
             break;
@@ -2366,6 +2369,7 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
                   if (Menu.Item == GSR_MENU_UTILS_BTN) { GuiMode = GSR_WATCHON; InsertHandleShowButtons(); UpdateDisp = true; SetTurbo(); }
                   else if (Menu.Item == GSR_MENU_UTILS_FIND) { GuiMode = GSR_WATCHON; InsertHandleFindPhone(); UpdateDisp = true; SetTurbo(); }
                   else if (Menu.Item == GSR_MENU_UTILS_MED) { GuiMode = GSR_WATCHON; InsertHandleMedInfo(); UpdateDisp = true; SetTurbo(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_WEAT) { GuiMode = GSR_WATCHON; InsertHandleWeather(); UpdateDisp = true; SetTurbo(); }
               }else if (Menu.Item == GSR_MENU_OPTIONS && Menu.SubItem == 0){  // Options
                   Menu.Item = GSR_MENU_STYL;
                   Menu.Style = GSR_MENU_INOPTIONS;
@@ -3213,7 +3217,7 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
               }else if (Menu.Style == GSR_MENU_INTIMERS){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_TIMEDN, GSR_MENU_TIMEUP);
               }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_WEAT);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);
               }else{
@@ -3547,7 +3551,7 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
               }else if (Menu.Style == GSR_MENU_INTIMERS){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_TIMEDN, GSR_MENU_TIMEUP);
               }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_MED);
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_WEAT);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_SCRN, GSR_MENU_UNVS);
               }else{
@@ -4925,6 +4929,8 @@ void WatchyGSR::StartWeather(){
 }
 
 bool WatchyGSR::IsWeatherAvailable() { return (WatchTime.UTC_RAW < (WeatherData.goneStale + WeatherData.Interval * 300) && WeatherData.Ready); }
+bool WatchyGSR::IsWeatherReady() { return WeatherData.Ready; }
+bool WatchyGSR::IsWeatherLoading() { return (WeatherData.State > 0); }
 int WatchyGSR::GetWeatherTemperature(){
   int T = 255;
   if (WeatherData.Ready) T = int(WeatherData.Weather.Temperature.Current); else T = SRTC.temperature();

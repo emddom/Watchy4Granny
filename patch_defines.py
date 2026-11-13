@@ -33,6 +33,7 @@ for line in lines:
 new_lines.append('#define GSR_MENU_UTILS_BTN 40\n')
 new_lines.append('#define GSR_MENU_UTILS_FIND 41\n')
 new_lines.append('#define GSR_MENU_UTILS_MED 42\n')
+new_lines.append('#define GSR_MENU_UTILS_WEAT 43\n')
 
 with open('src/Defines_GSR.h', 'w') as f:
     f.writelines(new_lines)

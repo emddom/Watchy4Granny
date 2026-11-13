@@ -26,6 +26,7 @@ extern RTC_DATA_ATTR bool wifiFailed;
 extern RTC_DATA_ATTR bool showingMedInfo;
 extern RTC_DATA_ATTR bool isSuspended;
 extern RTC_DATA_ATTR bool showingButtons;
+extern RTC_DATA_ATTR bool showingWeather;
 extern RTC_DATA_ATTR time_t suspendTime;
 
 
@@ -34,6 +35,7 @@ class OverrideGSR : public WatchyGSR {
   public:
     OverrideGSR() : WatchyGSR() {}
 
+    void InsertInitWatchStyle(uint8_t StyleID) override;
     void InsertWiFi() override;
     void InsertWiFiEnding() override;
     void InsertOnMinute() override;
@@ -43,6 +45,7 @@ class OverrideGSR : public WatchyGSR {
     void InsertHandleShowButtons() override;
     void InsertHandleFindPhone() override;
     void InsertHandleMedInfo() override;
+    void InsertHandleWeather() override;
 };
 
 #endif // OVERRIDEGSR_H

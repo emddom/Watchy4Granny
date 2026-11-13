@@ -44,11 +44,13 @@
         U_BTN["40: Show Buttons (GSR_MENU_UTILS_BTN)"]
         U_FIND["41: Find Phone (GSR_MENU_UTILS_FIND)"]
         U_MED["42: Med Info (GSR_MENU_UTILS_MED)"]
+        U_WEAT["43: Weather (GSR_MENU_UTILS_WEAT)"]
     end
     M_UTILS --&gt;|"SW1 (Enter)"| SUB_UTILS
     U_BTN --&gt;|"SW1 -&gt; InsertHandleShowButtons()"| ST_BTN["ShowButtonsState (10s Overlay)"]
     U_FIND --&gt;|"SW1 -&gt; InsertHandleFindPhone()"| ST_FIND["FindFoneState (WiFi + IFTTT Webhook)"]
     U_MED --&gt;|"SW1 -&gt; InsertHandleMedInfo()"| ST_MED["MedInfoState (Emergency Medical Info)"]
+    U_WEAT --&gt;|"SW1 -&gt; InsertHandleWeather()"| ST_WEAT["WeatherState (Open-Meteo Weather Report)"]
 
     subgraph SUB_ALARMS["Alarms Submenu (GSR_MENU_INALARMS)"]
         A_1["6: Alarm 1 (Time, Repeats, Days, Active)"]
@@ -113,7 +115,7 @@
             OptionsSubmenu --&gt; TroubleSubmenu : SW1 on 27: Troubleshoot (35..39)
             TroubleSubmenu --&gt; OptionsSubmenu : SW2 (Back)
 
-            RootMenu --&gt; UtilitiesSubmenu : SW1 on 5: Utilities (40..42)
+            RootMenu --&gt; UtilitiesSubmenu : SW1 on 5: Utilities (40..43)
             UtilitiesSubmenu --&gt; RootMenu : SW2 (Back)
         }
 
@@ -121,9 +123,12 @@
         MenuState --&gt; ShowButtonsState : Utilities -&gt; 40: Show Buttons (SW1)
         MenuState --&gt; FindFoneState : Utilities -&gt; 41: Find Phone (SW1)
         MenuState --&gt; MedInfoState : Utilities -&gt; 42: Med Info (SW1)
+        MenuState --&gt; WeatherState : Utilities -&gt; 43: Weather (SW1)
 
         ShowButtonsState --&gt; WatchfaceState : Any Button (&gt;1s debounce) / 10s Timeout / New Minute
         MedInfoState --&gt; WatchfaceState : SW2 (Back) / New Minute
+        WeatherState --&gt; WatchfaceState : SW2 (Back) / New Minute (when idle)
+        WeatherState --&gt; WeatherState : SW3 (Up - Manual Weather Refresh)
         FindFoneState --&gt; WatchfaceState : SW2 (Back) / Webhook Done + New Minute
         SuspendState --&gt; WatchfaceState : SW3 (Up) while Charging (GetBatteryState() == 3)
     }
@@ -140,6 +145,7 @@
 <li><strong>MenuState</strong>: Delegates input to the built-in <code>WatchyGSR</code> menu system.</li>
 <li><strong>ShowButtonsState</strong>: Displays an overlay hint mapping SW1-SW4 physical buttons to their current logical functions. Times out after 10s.</li>
 <li><strong>MedInfoState</strong>: Displays emergency medical info (e.g., Name, ID, Allergies).</li>
+<li><strong>WeatherState</strong>: Displays a full-screen weather report (icon, temperature, sky condition, feels-like, humidity, wind, and pressure) fetched from Open-Meteo.</li>
 <li><strong>FindFoneState</strong>: Connects to WiFi and triggers an IFTTT webhook to ping the user's phone.</li>
 <li><strong>SuspendState</strong>: A low-power lock screen triggered when the battery hits critical levels. Forces the UI to sleep to prevent accidental usage but can be temporarily awakened (via SW3) when plugged into a charger.</li>
 </ul>

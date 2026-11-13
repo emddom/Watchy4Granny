@@ -91,6 +91,7 @@ class WatchyGSR{
         virtual void InsertHandleShowButtons() {}
         virtual void InsertHandleFindPhone() {}
         virtual void InsertHandleMedInfo() {}
+        virtual void InsertHandleWeather() {}
         virtual void SaveProgress();
         virtual void NeedsSaving() final;
         virtual void InsertDrawWeather(uint8_t StyleID, bool Status = false);
@@ -140,6 +141,8 @@ class WatchyGSR{
         virtual void StartNTP(bool TimeSync = true, bool TimeZone = false) final;
         virtual void StartWeather() final;
         virtual bool IsWeatherAvailable() final;
+        virtual bool IsWeatherReady() final;
+        virtual bool IsWeatherLoading() final;
         virtual int GetWeatherTemperature() final;
         virtual int GetWeatherTemperatureFeelsLike() final;
         virtual void SetWeatherScale(bool Metric) final;

@@ -88,6 +88,7 @@
 #define GSR_MENU_UTILS_BTN 40
 #define GSR_MENU_UTILS_FIND 41
 #define GSR_MENU_UTILS_MED 42
+#define GSR_MENU_UTILS_WEAT 43
 
 // Menu segments.
 #define GSR_MENU_INNORMAL 0
