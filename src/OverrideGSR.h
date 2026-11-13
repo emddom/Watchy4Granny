@@ -35,6 +35,7 @@ class OverrideGSR : public WatchyGSR {
   public:
     OverrideGSR() : WatchyGSR() {}
 
+    void InsertDefaults() override;
     void InsertInitWatchStyle(uint8_t StyleID) override;
     void InsertWiFi() override;
     void InsertWiFiEnding() override;

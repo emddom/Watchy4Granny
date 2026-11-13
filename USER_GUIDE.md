@@ -35,7 +35,7 @@ To prevent accidental button presses while wearing the watch, the custom assisti
    * **`Show Buttons`**: Displays a 10-second on-screen corner legend showing what each physical button (`SW1`–`SW4`) does. Dismisses after 10 seconds or when any button is pressed.
    * **`Find Phone`**: Connects to WiFi and triggers the IFTTT webhook to ring your phone (`FINDING PHONE` -> `PHONE PINGED!`). Press **SW2 (Back)** at any time to cancel/exit.
    * **`Med Info`**: Displays emergency identification (Name, ID, Allergies, Birthdate). Press **SW2 (Back)** to return to the Watch Face.
-   * **`Weather`**: Displays the dedicated Open-Meteo weather report (condition icon, temperature, sky condition, feels-like, humidity, wind speed, and pressure). Automatically fetches fresh data over WiFi if needed; press **SW3 (Up)** to manually refresh or **SW2 (Back)** to return to the Watch Face.
+   * **`Weather`**: Displays the dedicated Open-Meteo weather report (condition icon, temperature in °C, sky condition, feels-like, humidity, wind speed in m/s, and pressure). Automatically fetches fresh data over WiFi if needed; press **SW3 (Up)** to manually refresh or **SW2 (Back)** to return to the Watch Face.
 
 ---
 

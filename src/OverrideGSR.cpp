@@ -10,6 +10,10 @@ RTC_DATA_ATTR bool showingButtons = false;
 RTC_DATA_ATTR bool showingWeather = false;
 RTC_DATA_ATTR time_t suspendTime = 0;
 
+void OverrideGSR::InsertDefaults() {
+    SetWeatherScale(true); // Default to Metric (Celsius, m/s)
+}
+
 void OverrideGSR::InsertInitWatchStyle(uint8_t StyleID) {
     WantWeather(true);
 }
@@ -261,7 +265,11 @@ void OverrideGSR::drawWatchFace() {
             display.print("Humidity: " + String(GetWeatherHumidity()) + "%");
 
             display.setCursor(5, 165);
-            display.print("Wind: " + String((int)GetWeatherWindSpeed()) + (IsMetric() ? " km/h" : " mph"));
+            if (IsMetric()) {
+                display.print("Wind: " + String(GetWeatherWindSpeed() / 3.6f, 1) + " m/s");
+            } else {
+                display.print("Wind: " + String((int)GetWeatherWindSpeed()) + " mph");
+            }
 
             display.setCursor(5, 190);
             display.print("Pressure: " + String(GetWeatherPressure()) + " hPa");
