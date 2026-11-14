@@ -781,7 +781,8 @@ void WatchyGSR::tick() {
     AlarmsOn = (Alarming || SoundActive() || !GetWebAvailable() || TimerAbuse());
     ActiveMode = (InTurbo() || B || NTPData.State || WeatherData.State || AlarmsOn || WatchyAPOn || OTAUpdate || GSRWiFi.Requested || GSRWiFi.Requests || OTAEnd || Button); /* (B && Up) */
     if (Options.Game != 255) { if (WatchStyles.AddOn[Options.Game] != nullptr) ActiveMode |= WatchStyles.AddOn[Options.Game]->InsertNeedAwake(!ActiveMode); }
-    if (WatchStyles.AddOn[Options.WatchFaceStyle] == nullptr) ActiveMode |= InsertNeedAwake(!ActiveMode); else ActiveMode |= WatchStyles.AddOn[Options.WatchFaceStyle]->InsertNeedAwake(!ActiveMode);
+    if (WatchStyles.AddOn[Options.WatchFaceStyle] != nullptr) ActiveMode |= WatchStyles.AddOn[Options.WatchFaceStyle]->InsertNeedAwake(!ActiveMode);
+    ActiveMode |= InsertNeedAwake(!ActiveMode);
     WatchTime.NewMinute = false;
     RefreshCPU(GSR_CPUDEF);
     Since=50-(millis()-Since);

@@ -28,6 +28,7 @@ extern RTC_DATA_ATTR bool isSuspended;
 extern RTC_DATA_ATTR bool showingButtons;
 extern RTC_DATA_ATTR bool showingWeather;
 extern bool showingBleRemote;
+extern bool bleMirrorMode;
 extern RTC_DATA_ATTR time_t suspendTime;
 
 

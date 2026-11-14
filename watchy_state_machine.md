@@ -90,6 +90,8 @@ stateDiagram-v2
         [*] --> WatchfaceState : Initial state
 
         WatchfaceState --> MenuState : SW1 (Open Root Menu)
+        WatchfaceState --> WeatherState : SW3 (Direct Weather Shortcut)
+        WatchfaceState --> BleRemoteState : SW4 (Direct BLE Remote Shortcut)
         WatchfaceState --> SuspendState : OnMinute (Battery % <= SuspendLevel & Not Charging)
 
         state "Native Menu System (MenuState)" as MenuState {

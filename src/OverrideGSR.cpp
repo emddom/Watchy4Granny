@@ -11,10 +11,24 @@ RTC_DATA_ATTR bool isSuspended = false;
 RTC_DATA_ATTR bool showingButtons = false;
 RTC_DATA_ATTR bool showingWeather = false;
 bool showingBleRemote = false;
+bool bleMirrorMode = false;
 RTC_DATA_ATTR time_t suspendTime = 0;
+
+using GxDisplayType = GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT>;
+using GxBufType = uint8_t(GxDisplayType::*)[5000];
+template<GxBufType M>
+struct GxBufferAccess {
+    friend const uint8_t* getGxDisplayBuffer(const GxDisplayType& d) {
+        return d.*M;
+    }
+};
+template struct GxBufferAccess<&GxDisplayType::_buffer>;
+const uint8_t* getGxDisplayBuffer(const GxDisplayType& d);
 
 static bool bleInitialized = false;
 static bool bleConnected = false;
+static bool screenReadMode = false;
+static uint32_t screenFrameSeq = 1;
 static String bleLastAction = "Ready";
 static NimBLEServer* bleServer = nullptr;
 static NimBLEHIDDevice* bleHid = nullptr;
@@ -69,7 +83,7 @@ static String formatTwinWeather() {
 }
 
 static String formatTwinStatus() {
-    if (!uiSM.watchy) return "0,0.00,0,0";
+    if (!uiSM.watchy) return "0,0.00,0,0,0,0";
     float v = WatchyGSR::getBatteryVoltage();
     int pct = 0;
     if (v >= 4.20f) pct = 100;
@@ -77,8 +91,10 @@ static String formatTwinStatus() {
     else pct = (int)((v - 3.30f) / (4.20f - 3.30f) * 100.0f);
     uint32_t steps = uiSM.watchy->CurrentStepCount();
     int chg = (uiSM.watchy->GetBatteryState() == 3) ? 1 : 0;
-    char buf[48];
-    snprintf(buf, sizeof(buf), "%d,%.2f,%lu,%d", pct, v, (unsigned long)steps, chg);
+    int mode = showingBleRemote ? 1 : 0;
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%d,%.2f,%lu,%d,%lu,%d",
+             pct, v, (unsigned long)steps, chg, (unsigned long)screenFrameSeq, mode);
     return String(buf);
 }
 
@@ -92,7 +108,9 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
     void onRead(NimBLECharacteristic* pChar) {
         std::string uuid = pChar->getUUID().toString();
         if (uuid == TWIN_CHAR_TIME_UUID) {
-            setCharString(pChar, formatTwinTime());
+            if (!screenReadMode) {
+                setCharString(pChar, formatTwinTime());
+            }
         } else if (uuid == TWIN_CHAR_LOC_UUID) {
             setCharString(pChar, formatTwinLocation());
         } else if (uuid == TWIN_CHAR_WEAT_UUID) {
@@ -111,6 +129,55 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
         if (val.length() == 0) return;
 
         if (uuid == TWIN_CHAR_TIME_UUID) {
+            if (val.startsWith("SCR:")) {
+                if (val == "SCR:END") {
+                    screenReadMode = false;
+                    setCharString(pChar, formatTwinTime());
+                } else {
+                    int offset = 0, len = 500;
+                    if (sscanf(val.c_str() + 4, "%d,%d", &offset, &len) >= 1) {
+                        if (offset >= 0 && offset < 5000) {
+                            if (len <= 0 || len > 500) len = 500;
+                            if (offset + len > 5000) len = 5000 - offset;
+                            const uint8_t* fb = getGxDisplayBuffer(WatchyGSR::display);
+                            screenReadMode = true;
+                            pChar->setValue(fb + offset, len);
+                        }
+                    }
+                }
+                return;
+            }
+            screenReadMode = false;
+            if (val == "MODE:WATCH") {
+                bleMirrorMode = true;
+                uiSM.setState(&watchfaceState);
+                uiSM.watchy->UpdateScreen();
+                return;
+            } else if (val == "MODE:BLE") {
+                bleMirrorMode = false;
+                uiSM.setState(&bleRemoteState);
+                uiSM.watchy->UpdateScreen();
+                return;
+            } else if (val == "MODE:OFF") {
+                bleMirrorMode = false;
+                uiSM.setState(&watchfaceState);
+                uiSM.watchy->stopBleHid();
+                uiSM.watchy->UpdateScreen();
+                return;
+            } else if (val.startsWith("BTN:")) {
+                int btn = atoi(val.c_str() + 4);
+                if (btn >= 1 && btn <= 4) {
+                    if (showingBleRemote && btn == 2) {
+                        bleMirrorMode = true;
+                        uiSM.setState(&watchfaceState);
+                        uiSM.watchy->UpdateScreen();
+                    } else {
+                        Button = (uint8_t)btn;
+                    }
+                }
+                return;
+            }
+
             int Y = 0, M = 0, D = 0, h = 0, m = 0, s = 0;
             if (val.indexOf('-') > 0 && sscanf(val.c_str(), "%d-%d-%d %d:%d:%d", &Y, &M, &D, &h, &m, &s) >= 5) {
                 uiSM.watchy->SetLocalTimeFromBLE(Y, M, D, h, m, s);
@@ -178,7 +245,7 @@ class WatchyBleServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer* pServer) {
         bleConnected = true;
         bleLastAction = "Connected";
-        if (showingBleRemote && pServer->getConnectedCount() < 3) {
+        if ((showingBleRemote || bleMirrorMode) && pServer->getConnectedCount() < 3) {
             NimBLEDevice::startAdvertising();
         }
         if (uiSM.watchy) uiSM.watchy->UpdateScreen();
@@ -186,6 +253,9 @@ class WatchyBleServerCallbacks : public NimBLEServerCallbacks {
     void onDisconnect(NimBLEServer* pServer) {
         bleConnected = (pServer->getConnectedCount() > 0);
         bleLastAction = bleConnected ? "Connected" : "Disconnected";
+        if (!bleConnected && bleMirrorMode) {
+            bleMirrorMode = false;
+        }
         if (showingBleRemote) {
             NimBLEDevice::startAdvertising();
         }
@@ -257,7 +327,10 @@ void OverrideGSR::InsertOnMinute() {
 
 bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
     if (showingButtons) return true;
-    if (showingBleRemote) return true;
+    if (showingBleRemote || bleMirrorMode) {
+        KeepDisplayAwake();
+        return true;
+    }
     if (showingWeather && IsWeatherLoading()) return true;
     if (isSuspended && GetBatteryState() == 3) {
         return true; // Keep awake when charging to animate blinking character
@@ -304,6 +377,7 @@ void OverrideGSR::drawWatchFace() {
             display.setCursor(10, 130);
             display.print("Battery critically low");
         }
+        screenFrameSeq++;
         return;
     }
 
@@ -318,9 +392,9 @@ void OverrideGSR::drawWatchFace() {
 
         auto getLogicalName = [](uint8_t logicalId) -> String {
             if (logicalId == 1) return "Menu";
-            if (logicalId == 2) return "Buttons";
-            if (logicalId == 3) return "FindPhone";
-            if (logicalId == 4) return "Med";
+            if (logicalId == 2) return "Back";
+            if (logicalId == 3) return "Weather";
+            if (logicalId == 4) return "BLE";
             return "";
         };
 
@@ -515,6 +589,7 @@ void OverrideGSR::drawWatchFace() {
         display.setCursor(10, 130);
         display.print("(Check settings)");
     }
+    screenFrameSeq++;
 }
 
 bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) {
@@ -577,6 +652,7 @@ void OverrideGSR::startBleHid() {
     bleLastAction = "Ready";
     if (!bleInitialized) {
         NimBLEDevice::init("Watchy4Granny");
+        NimBLEDevice::setMTU(517);
         NimBLEDevice::setSecurityAuth(true, false, true);
 
         bleServer = NimBLEDevice::createServer();
@@ -639,6 +715,8 @@ void OverrideGSR::startBleHid() {
 }
 
 void OverrideGSR::stopBleHid() {
+    bleMirrorMode = false;
+    screenReadMode = false;
     if (bleInitialized) {
         NimBLEDevice::stopAdvertising();
         if (bleServer && bleServer->getConnectedCount() > 0) {

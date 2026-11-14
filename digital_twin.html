@@ -22,7 +22,7 @@
       font-family: system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
-      max-width: 760px;
+      max-width: 820px;
       margin-inline: auto;
     }
     h1 { font-size: 1.5rem; margin: 0 0 4px; }
@@ -41,6 +41,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
     }
     .row {
       display: flex;
@@ -58,10 +60,18 @@
       font-weight: 600;
       cursor: pointer;
       font-size: 0.9rem;
+      transition: transform 0.08s ease, opacity 0.15s ease;
+    }
+    button:active:not(:disabled) {
+      transform: scale(0.97);
     }
     button.secondary {
       background: #334155;
       color: var(--text);
+    }
+    button.danger {
+      background: #ef4444;
+      color: #fff;
     }
     button:disabled {
       opacity: 0.45;
@@ -99,6 +109,91 @@
       color: var(--muted);
     }
     .badge.connected { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+
+    /* Watchy 200x200 Look-Alike Bezel */
+    .watchy-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 12px 0 16px;
+    }
+    .watchy-rig {
+      display: grid;
+      grid-template-columns: auto auto auto;
+      align-items: center;
+      gap: 12px;
+    }
+    .bezel-col {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 240px;
+    }
+    .sw-btn {
+      background: #0f172a;
+      color: var(--text);
+      border: 2px solid #475569;
+      border-radius: 10px;
+      padding: 12px 14px;
+      min-width: 118px;
+      text-align: left;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+    }
+    .sw-btn:hover:not(:disabled) {
+      border-color: var(--accent);
+    }
+    .sw-btn .sw-id {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-family: monospace;
+    }
+    .sw-btn .sw-desc {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .watchy-case {
+      background: #0b0f19;
+      border: 4px solid #334155;
+      border-radius: 22px;
+      padding: 18px;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.5), inset 0 0 0 2px #1e293b;
+      position: relative;
+    }
+    .watchy-label-top {
+      text-align: center;
+      font-size: 0.68rem;
+      letter-spacing: 2px;
+      color: #64748b;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    #epdCanvas {
+      width: 240px;
+      height: 240px;
+      image-rendering: pixelated;
+      background: #e8ece6;
+      border: 2px solid #1e293b;
+      border-radius: 4px;
+      display: block;
+    }
+    .progress-bar-wrap {
+      width: 240px;
+      height: 4px;
+      background: #1e293b;
+      margin-top: 8px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    #screenProgress {
+      width: 0%;
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.1s linear;
+    }
+
     #log {
       font-family: monospace;
       font-size: 0.82rem;
@@ -126,18 +221,56 @@
 <body>
   <h1>Watchy4Granny — BLE Digital Twin</h1>
   <div class="sub">
-    Open <strong>Menu &rarr; Utilities &rarr; BLE Remote</strong> on Watchy, then connect below (Chrome on Android, Chromebook, or Linux/Desktop).
+    Open <strong>Menu &rarr; Utilities &rarr; BLE Remote</strong> on Watchy, then click <strong>Connect Watchy BLE</strong> below.
   </div>
 
   <div class="card">
     <h2>
-      <span>Connection &amp; Watch Status</span>
+      <span>Live 200&times;200 E-Paper Screen Mirror &amp; Control</span>
       <span id="statusBadge" class="badge">DISCONNECTED</span>
     </h2>
     <div class="row">
       <button id="btnConnect" onclick="connectWatchy()">Connect Watchy BLE</button>
-      <button id="btnRefresh" class="secondary" onclick="readAll()" disabled>Read All from Watchy</button>
+      <button id="btnModeWatch" class="secondary" onclick="setWatchyMode('WATCH')" disabled>🖥️ Live Watchface &amp; Menus</button>
+      <button id="btnModeBle" class="secondary" onclick="setWatchyMode('BLE')" disabled>🎵 BLE Media Remote</button>
+      <button id="btnRefreshScreen" class="secondary" onclick="manualRefreshScreen()" disabled>🔄 Capture Screen</button>
+      <button id="btnStopBle" class="danger" onclick="setWatchyMode('OFF')" disabled>💤 Stop BLE</button>
     </div>
+
+    <div class="watchy-stage">
+      <div class="watchy-rig">
+        <div class="bezel-col">
+          <button id="btnSw2" class="sw-btn" onclick="pressWatchyButton(2)" disabled>
+            <span class="sw-id">SW2 (Top-Left)</span>
+            <span class="sw-desc">&larr; Back / Exit</span>
+          </button>
+          <button id="btnSw1" class="sw-btn" onclick="pressWatchyButton(1)" disabled>
+            <span class="sw-id">SW1 (Bot-Left)</span>
+            <span class="sw-desc">&#9776; Menu / Enter</span>
+          </button>
+        </div>
+
+        <div class="watchy-case">
+          <div class="watchy-label-top">WATCHY 200&times;200 E-PAPER</div>
+          <canvas id="epdCanvas" width="200" height="200"></canvas>
+          <div class="progress-bar-wrap">
+            <div id="screenProgress"></div>
+          </div>
+        </div>
+
+        <div class="bezel-col">
+          <button id="btnSw3" class="sw-btn" onclick="pressWatchyButton(3)" disabled>
+            <span class="sw-id">SW3 (Top-Right)</span>
+            <span class="sw-desc">&uarr; Up / Vol+</span>
+          </button>
+          <button id="btnSw4" class="sw-btn" onclick="pressWatchyButton(4)" disabled>
+            <span class="sw-id">SW4 (Bot-Right)</span>
+            <span class="sw-desc">&darr; Down / Vol-</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="stat-grid">
       <div class="stat">
         <div class="stat-label">Watchy Time</div>
@@ -161,17 +294,17 @@
   <div class="card">
     <h2>1. BLE Time Sync (No WiFi Needed)</h2>
     <p class="sub" style="margin-top:0">
-      Syncs your phone's exact UTC clock and timezone (<code id="localTzLabel"></code>) directly to Watchy over BLE.
+      Syncs your phone/PC's exact UTC clock and timezone (<code id="localTzLabel"></code>) directly to Watchy over BLE.
     </p>
     <div class="row">
-      <button id="btnSyncTime" onclick="syncTime()" disabled>Sync Phone Time to Watchy Now</button>
+      <button id="btnSyncTime" onclick="syncTime()" disabled>Sync Time &amp; Timezone to Watchy Now</button>
     </div>
   </div>
 
   <div class="card">
     <h2>2. Weather Location &amp; Phone-Assisted Weather Push</h2>
     <p class="sub" style="margin-top:0">
-      Update Watchy's saved coordinates (NVS) and optionally fetch Open-Meteo weather using your phone/PC's internet and push it to Watchy over BLE.
+      Update Watchy's saved coordinates (NVS) and fetch Open-Meteo weather using your phone/PC's internet to push directly to Watchy over BLE.
     </p>
     <div class="row">
       <input id="inpCity" type="text" placeholder="Search city name (e.g. Helsinki, Bucharest, London)..." />
@@ -193,49 +326,6 @@
     <div id="log">Ready. Put Watchy in Menu -> Utilities -> BLE Remote.</div>
   </div>
 
-  <div class="card">
-    <h2>MIT App Inventor / Thunkable GATT Reference</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Characteristic</th>
-          <th>UUID</th>
-          <th>Read / Write String Format</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>SERVICE</td>
-          <td>19b10000-e8f2-537e-4f6c-d104768a1214</td>
-          <td>Primary Digital Twin Service</td>
-        </tr>
-        <tr>
-          <td>TIME</td>
-          <td>19b10001-e8f2-537e-4f6c-d104768a1214</td>
-          <td>
-            Read: <code>YYYY-MM-DD HH:MM:SS,utcEpoch</code><br/>
-            Write: <code>utcEpochSec</code> OR <code>utcEpochMs</code> (e.g. <code>Clock1.SystemTime</code>) OR <code>YYYY-MM-DD HH:MM:SS</code>
-          </td>
-        </tr>
-        <tr>
-          <td>LOCATION</td>
-          <td>19b10002-e8f2-537e-4f6c-d104768a1214</td>
-          <td>Read/Write: <code>lat,lon</code> (e.g. <code>47.497913,19.040236</code>)</td>
-        </tr>
-        <tr>
-          <td>WEATHER</td>
-          <td>19b10003-e8f2-537e-4f6c-d104768a1214</td>
-          <td>Read/Write: <code>tempC,feelsC,wmoCode,humidity,windMs,pressure</code></td>
-        </tr>
-        <tr>
-          <td>STATUS</td>
-          <td>19b10004-e8f2-537e-4f6c-d104768a1214</td>
-          <td>Read: <code>batteryPct,voltage,steps,charging</code></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
   <script>
     const TWIN_SERVICE_UUID     = '19b10000-e8f2-537e-4f6c-d104768a1214';
     const TWIN_CHAR_TIME_UUID   = '19b10001-e8f2-537e-4f6c-d104768a1214';
@@ -245,11 +335,52 @@
 
     let bleDevice = null;
     let charTime = null, charLoc = null, charWeat = null, charStatus = null;
+    let bleBusy = false;
+    let lastFrameSeq = null;
+    let pollTimer = null;
+    const framebuffer = new Uint8Array(5000);
     const dec = new TextDecoder();
     const enc = new TextEncoder();
 
     document.getElementById('localTzLabel').textContent =
       Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local TZ';
+
+    // Draw placeholder on 200x200 canvas
+    const canvas = document.getElementById('epdCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#e8ece6';
+    ctx.fillRect(0, 0, 200, 200);
+    ctx.fillStyle = '#111827';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('WATCHY E-PAPER', 100, 92);
+    ctx.font = '12px monospace';
+    ctx.fillText('Connect BLE to mirror', 100, 114);
+
+    function renderFramebufferToCanvas(maxOffset = 5000) {
+      const imgData = ctx.createImageData(200, 200);
+      const data = imgData.data;
+      const totalBytes = Math.min(5000, maxOffset);
+      for (let byteIdx = 0; byteIdx < totalBytes; byteIdx++) {
+        const b = framebuffer[byteIdx];
+        for (let bit = 0; bit < 8; bit++) {
+          const isWhite = (b & (1 << (7 - bit))) !== 0;
+          const pxIdx = (byteIdx * 8 + bit) * 4;
+          if (isWhite) {
+            data[pxIdx]     = 236;
+            data[pxIdx + 1] = 240;
+            data[pxIdx + 2] = 234;
+            data[pxIdx + 3] = 255;
+          } else {
+            data[pxIdx]     = 17;
+            data[pxIdx + 1] = 24;
+            data[pxIdx + 2] = 39;
+            data[pxIdx + 3] = 255;
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
 
     function log(msg) {
       const el = document.getElementById('log');
@@ -261,16 +392,36 @@
       const badge = document.getElementById('statusBadge');
       badge.textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
       badge.className = 'badge' + (connected ? ' connected' : '');
-      ['btnRefresh', 'btnSyncTime', 'btnSaveLoc', 'btnPushWeather'].forEach(id => {
+      const ids = [
+        'btnModeWatch', 'btnModeBle', 'btnRefreshScreen', 'btnStopBle',
+        'btnSw1', 'btnSw2', 'btnSw3', 'btnSw4',
+        'btnSyncTime', 'btnSaveLoc', 'btnPushWeather'
+      ];
+      ids.forEach(id => {
         document.getElementById(id).disabled = !connected;
       });
+      if (!connected && pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    async function withBleLock(fn) {
+      while (bleBusy) {
+        await new Promise(r => setTimeout(r, 40));
+      }
+      bleBusy = true;
+      try {
+        return await fn();
+      } finally {
+        bleBusy = false;
+      }
     }
 
     async function connectWatchy() {
       if (!navigator.bluetooth) {
         log('ERROR: WebBluetooth (navigator.bluetooth) is not available in this browser.');
-        log('-> Firefox does not support WebBluetooth. Please open this page in Chrome, Chromium, or Edge.');
-        log('-> On Linux Chrome/Chromium, enable: chrome://flags/#enable-web-bluetooth and chrome://flags/#enable-experimental-web-platform-features, and open via http://localhost:8080/digital_twin.html');
+        log('-> Please open this page in Chrome, Chromium, Brave, or Edge.');
         return;
       }
       try {
@@ -292,53 +443,144 @@
         charStatus = await service.getCharacteristic(TWIN_CHAR_STATUS_UUID);
 
         setConnectedUi(true);
-        log('Connected! Reading current Watchy state...');
-        await readAll();
+        lastFrameSeq = null;
+        log('Connected! Reading Watchy state and 200x200 screen...');
+        await withBleLock(async () => {
+          await readTelemetryUnlocked();
+          await readScreenUnlocked();
+        });
+
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(checkWatchyScreenUpdate, 1400);
       } catch (err) {
         log('Error: ' + err.message);
       }
     }
 
-    async function readAll() {
-      try {
-        const tStr = dec.decode(await charTime.readValue());
-        const [dtPart] = tStr.split(',');
-        document.getElementById('valTime').textContent = dtPart || tStr;
+    async function readTelemetryUnlocked() {
+      await charTime.writeValue(enc.encode('SCR:END'));
+      const tStr = dec.decode(await charTime.readValue());
+      const [dtPart] = tStr.split(',');
+      document.getElementById('valTime').textContent = dtPart || tStr;
 
-        const sStr = dec.decode(await charStatus.readValue());
-        const [pct, volt, steps, chg] = sStr.split(',');
-        document.getElementById('valBatt').textContent = `${pct}% (${volt}V)${chg === '1' ? ' ⚡' : ''}`;
-        document.getElementById('valSteps').textContent = steps;
-
-        const lStr = dec.decode(await charLoc.readValue());
-        const [lat, lon] = lStr.split(',');
-        if (lat && lon) {
-          document.getElementById('inpLat').value = parseFloat(lat).toFixed(4);
-          document.getElementById('inpLon').value = parseFloat(lon).toFixed(4);
-        }
-
-        const wStr = dec.decode(await charWeat.readValue());
-        const [tempC, feelsC, code, hum, windMs, pres, ready] = wStr.split(',');
-        document.getElementById('valWeat').textContent =
-          ready === '1' ? `${tempC}°C, ${windMs} m/s` : 'No Data';
-
-        log(`State read — Time: ${dtPart} | Loc: ${lStr} | Batt: ${pct}%`);
-      } catch (err) {
-        log('Read error: ' + err.message);
+      const sStr = dec.decode(await charStatus.readValue());
+      const [pct, volt, steps, chg, frameSeq] = sStr.split(',');
+      document.getElementById('valBatt').textContent = `${pct}% (${volt}V)${chg === '1' ? ' ⚡' : ''}`;
+      document.getElementById('valSteps').textContent = steps;
+      if (frameSeq !== undefined) {
+        lastFrameSeq = frameSeq;
       }
+
+      const lStr = dec.decode(await charLoc.readValue());
+      const [lat, lon] = lStr.split(',');
+      if (lat && lon && !document.getElementById('inpLat').value) {
+        document.getElementById('inpLat').value = parseFloat(lat).toFixed(4);
+        document.getElementById('inpLon').value = parseFloat(lon).toFixed(4);
+      }
+
+      const wStr = dec.decode(await charWeat.readValue());
+      const [tempC, feelsC, code, hum, windMs, pres, ready] = wStr.split(',');
+      document.getElementById('valWeat').textContent =
+        ready === '1' ? `${tempC}°C, ${windMs} m/s` : 'No Data';
+    }
+
+    async function readScreenUnlocked() {
+      const prog = document.getElementById('screenProgress');
+      prog.style.width = '2%';
+      let offset = 0;
+      while (offset < 5000) {
+        const reqLen = Math.min(500, 5000 - offset);
+        await charTime.writeValue(enc.encode(`SCR:${offset},${reqLen}`));
+        const dv = await charTime.readValue();
+        const chunk = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+        if (chunk.length === 0) break;
+        framebuffer.set(chunk.subarray(0, Math.min(chunk.length, 5000 - offset)), offset);
+        offset += chunk.length;
+        prog.style.width = `${Math.min(100, Math.round((offset / 5000) * 100))}%`;
+        renderFramebufferToCanvas(offset);
+      }
+      await charTime.writeValue(enc.encode('SCR:END'));
+      setTimeout(() => { prog.style.width = '0%'; }, 300);
+    }
+
+    async function checkWatchyScreenUpdate() {
+      if (!bleDevice || !bleDevice.gatt.connected || bleBusy) return;
+      await withBleLock(async () => {
+        try {
+          const sStr = dec.decode(await charStatus.readValue());
+          const [pct, volt, steps, chg, frameSeq] = sStr.split(',');
+          document.getElementById('valBatt').textContent = `${pct}% (${volt}V)${chg === '1' ? ' ⚡' : ''}`;
+          document.getElementById('valSteps').textContent = steps;
+          if (frameSeq !== undefined && frameSeq !== lastFrameSeq) {
+            lastFrameSeq = frameSeq;
+            await readScreenUnlocked();
+            const tStr = dec.decode(await charTime.readValue());
+            const [dtPart] = tStr.split(',');
+            document.getElementById('valTime').textContent = dtPart || tStr;
+          }
+        } catch (_) {}
+      });
+    }
+
+    async function manualRefreshScreen() {
+      await withBleLock(async () => {
+        log('Capturing 200x200 e-paper framebuffer from Watchy...');
+        await readTelemetryUnlocked();
+        await readScreenUnlocked();
+        log('Screen capture complete.');
+      });
+    }
+
+    async function setWatchyMode(mode) {
+      await withBleLock(async () => {
+        try {
+          await charTime.writeValue(enc.encode(`MODE:${mode}`));
+          if (mode === 'OFF') {
+            log('Stopped BLE on Watchy (Watchy returning to low-power sleep).');
+            setConnectedUi(false);
+            return;
+          }
+          log(mode === 'WATCH'
+            ? 'Switched Watchy to Live Watchface & Menu Mode (use SW1-SW4 to navigate)!'
+            : 'Switched Watchy to BLE Media Remote Mode.');
+          await new Promise(r => setTimeout(r, 250));
+          await readTelemetryUnlocked();
+          await readScreenUnlocked();
+        } catch (err) {
+          log('Mode switch error: ' + err.message);
+        }
+      });
+    }
+
+    async function pressWatchyButton(btnNum) {
+      await withBleLock(async () => {
+        try {
+          await charTime.writeValue(enc.encode(`BTN:${btnNum}`));
+          log(`Pressed SW${btnNum} on Watchy`);
+          await new Promise(r => setTimeout(r, 320));
+          await readTelemetryUnlocked();
+          await readScreenUnlocked();
+        } catch (err) {
+          log(`SW${btnNum} error: ` + err.message);
+        }
+      });
     }
 
     async function syncTime() {
-      try {
-        const epochSec = Math.floor(Date.now() / 1000);
-        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-        const payload = tz ? `${epochSec},${tz}` : `${epochSec}`;
-        await charTime.writeValue(enc.encode(payload));
-        log(`Synced Time to Watchy: ${payload}`);
-        await readAll();
-      } catch (err) {
-        log('Time sync error: ' + err.message);
-      }
+      await withBleLock(async () => {
+        try {
+          const epochSec = Math.floor(Date.now() / 1000);
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+          const payload = tz ? `${epochSec},${tz}` : `${epochSec}`;
+          await charTime.writeValue(enc.encode(payload));
+          log(`Synced Time to Watchy: ${payload}`);
+          await new Promise(r => setTimeout(r, 250));
+          await readTelemetryUnlocked();
+          await readScreenUnlocked();
+        } catch (err) {
+          log('Time sync error: ' + err.message);
+        }
+      });
     }
 
     async function searchCity() {
@@ -377,50 +619,58 @@
     }
 
     async function writeLocation() {
-      try {
-        const lat = parseFloat(document.getElementById('inpLat').value);
-        const lon = parseFloat(document.getElementById('inpLon').value);
-        if (isNaN(lat) || isNaN(lon)) {
-          log('Enter valid Latitude and Longitude first.');
-          return;
+      await withBleLock(async () => {
+        try {
+          const lat = parseFloat(document.getElementById('inpLat').value);
+          const lon = parseFloat(document.getElementById('inpLon').value);
+          if (isNaN(lat) || isNaN(lon)) {
+            log('Enter valid Latitude and Longitude first.');
+            return;
+          }
+          const payload = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+          await charLoc.writeValue(enc.encode(payload));
+          log(`Updated Watchy Location (saved to NVS): ${payload}`);
+          await new Promise(r => setTimeout(r, 200));
+          await readTelemetryUnlocked();
+          await readScreenUnlocked();
+        } catch (err) {
+          log('Location write error: ' + err.message);
         }
-        const payload = `${lat.toFixed(6)},${lon.toFixed(6)}`;
-        await charLoc.writeValue(enc.encode(payload));
-        log(`Updated Watchy Location (saved to NVS): ${payload}`);
-        await readAll();
-      } catch (err) {
-        log('Location write error: ' + err.message);
-      }
+      });
     }
 
     async function fetchAndPushWeather() {
-      try {
-        const lat = parseFloat(document.getElementById('inpLat').value);
-        const lon = parseFloat(document.getElementById('inpLon').value);
-        if (isNaN(lat) || isNaN(lon)) {
-          log('Enter or get GPS coordinates first.');
-          return;
-        }
-        await writeLocation();
-        log('Fetching live weather from Open-Meteo on phone...');
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m&wind_speed_unit=ms`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const c = data.current;
-        const payload = [
-          Math.round(c.temperature_2m),
-          Math.round(c.apparent_temperature),
-          c.weather_code,
-          Math.round(c.relative_humidity_2m),
-          c.wind_speed_10m.toFixed(1),
-          Math.round(c.surface_pressure)
-        ].join(',');
-        await charWeat.writeValue(enc.encode(payload));
-        log(`Pushed Weather to Watchy: ${payload}`);
-        await readAll();
-      } catch (err) {
-        log('Weather push error: ' + err.message);
+      const lat = parseFloat(document.getElementById('inpLat').value);
+      const lon = parseFloat(document.getElementById('inpLon').value);
+      if (isNaN(lat) || isNaN(lon)) {
+        log('Enter or find city coordinates first.');
+        return;
       }
+      await writeLocation();
+      await withBleLock(async () => {
+        try {
+          log('Fetching live weather from Open-Meteo...');
+          const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m&wind_speed_unit=ms`;
+          const res = await fetch(url);
+          const data = await res.json();
+          const c = data.current;
+          const payload = [
+            Math.round(c.temperature_2m),
+            Math.round(c.apparent_temperature),
+            c.weather_code,
+            Math.round(c.relative_humidity_2m),
+            c.wind_speed_10m.toFixed(1),
+            Math.round(c.surface_pressure)
+          ].join(',');
+          await charWeat.writeValue(enc.encode(payload));
+          log(`Pushed Weather to Watchy: ${payload}`);
+          await new Promise(r => setTimeout(r, 250));
+          await readTelemetryUnlocked();
+          await readScreenUnlocked();
+        } catch (err) {
+          log('Weather push error: ' + err.message);
+        }
+      });
     }
   </script>
 </body>

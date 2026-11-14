@@ -71,6 +71,23 @@ void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
         return;
     }
 
+    // Direct shortcuts from the main Watch Face: SW3 -> Weather, SW4 -> BLE Remote
+    if (usm->watchy->NoMenu() && !usm->watchy->InGame()) {
+        if (button == 3) {
+            while (usm->watchy->getButtonPins() != 0) { delay(10); }
+            usm->watchy->SetTurbo();
+            Button = 0;
+            usm->setState(&weatherState);
+            return;
+        } else if (button == 4) {
+            while (usm->watchy->getButtonPins() != 0) { delay(10); }
+            usm->watchy->SetTurbo();
+            Button = 0;
+            usm->setState(&bleRemoteState);
+            return;
+        }
+    }
+
     // Fallback: pass button to the core WatchyGSR framework
     usm->watchy->handleMenuButton(button);
     
@@ -244,6 +261,7 @@ static unsigned long bleRemoteEnterTime = 0;
 void BleRemoteState::enter(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     showingBleRemote = true;
+    bleMirrorMode = false;
     bleRemoteEnterTime = millis();
     usm->watchy->startBleHid();
     usm->watchy->UpdateScreen();
@@ -257,7 +275,9 @@ void BleRemoteState::execute(StateMachine* sm) {
 void BleRemoteState::exit(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     showingBleRemote = false;
-    usm->watchy->stopBleHid();
+    if (!bleMirrorMode) {
+        usm->watchy->stopBleHid();
+    }
 }
 
 void BleRemoteState::handleButton(StateMachine* sm, uint8_t button) {

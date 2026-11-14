@@ -16,12 +16,16 @@ Looking at the Watchy screen right-side up, the watch has 4 physical buttons on 
 * **In Custom Screens (`Med Info`, `Weather`, `Find Phone`, `Show Buttons`):** Cancels/closes the screen and returns immediately to the Watch Face.
 
 ### **SW3: Up (Top-Right Button)**
+* **From the Watch Face:** Opens the **Weather** screen directly (`WeatherState`).
 * **Inside a Menu:** Scrolls **Up** (`Menu.Item - 1`) through menu items or increases the selected setting value.
 * **In `Weather` Screen:** Triggers an immediate WiFi weather refresh from Open-Meteo.
+* **In `BLE Remote` Screen:** Sends **Volume Up** over BLE HID.
 * **In `Suspended` Screen (While Charging):** Wakes the watch back to the normal Watch Face when the `*` indicator is blinking next to `SW3`.
 
 ### **SW4: Down (Bottom-Right Button)**
+* **From the Watch Face:** Opens the **BLE Remote / Digital Twin** screen directly (`BleRemoteState`).
 * **Inside a Menu:** Scrolls **Down** (`Menu.Item + 1`) through menu items or decreases the selected setting value.
+* **In `BLE Remote` Screen:** Sends **Volume Down** over BLE HID.
 
 ---
 
