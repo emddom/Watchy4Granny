@@ -221,7 +221,7 @@
 <body>
   <h1>Watchy4Granny — BLE Digital Twin</h1>
   <div class="sub">
-    Open <strong>Menu &rarr; Utilities &rarr; BLE Remote</strong> on Watchy, then click <strong>Connect Watchy BLE</strong> below.
+    Press <strong>SW4 (Bottom-Right)</strong> on the Watchy Watch Face (or open <strong>Menu &rarr; Utilities &rarr; BLE Remote</strong>), then click <strong>Connect Watchy BLE</strong> below.
   </div>
 
   <div class="card">
@@ -231,8 +231,8 @@
     </h2>
     <div class="row">
       <button id="btnConnect" onclick="connectWatchy()">Connect Watchy BLE</button>
-      <button id="btnModeWatch" class="secondary" onclick="setWatchyMode('WATCH')" disabled>🖥️ Live Watchface &amp; Menus</button>
-      <button id="btnModeBle" class="secondary" onclick="setWatchyMode('BLE')" disabled>🎵 BLE Media Remote</button>
+      <button id="btnModeWatch" class="secondary" onclick="setWatchyMode('WATCH')" disabled>🖥️ Watchface</button>
+      <button id="btnModeBle" class="secondary" onclick="setWatchyMode('BLE')" disabled>🎵 Media Remote</button>
       <button id="btnRefreshScreen" class="secondary" onclick="manualRefreshScreen()" disabled>🔄 Capture Screen</button>
       <button id="btnStopBle" class="danger" onclick="setWatchyMode('OFF')" disabled>💤 Stop BLE</button>
     </div>
@@ -261,11 +261,11 @@
         <div class="bezel-col">
           <button id="btnSw3" class="sw-btn" onclick="pressWatchyButton(3)" disabled>
             <span class="sw-id">SW3 (Top-Right)</span>
-            <span class="sw-desc">&uarr; Up / Vol+</span>
+            <span class="sw-desc">&uarr; Up / Weather</span>
           </button>
           <button id="btnSw4" class="sw-btn" onclick="pressWatchyButton(4)" disabled>
             <span class="sw-id">SW4 (Bot-Right)</span>
-            <span class="sw-desc">&darr; Down / Vol-</span>
+            <span class="sw-desc">&darr; Down / BLE</span>
           </button>
         </div>
       </div>
@@ -444,8 +444,10 @@
 
         setConnectedUi(true);
         lastFrameSeq = null;
-        log('Connected! Reading Watchy state and 200x200 screen...');
+        log('Connected! Switching to Watchface mode & reading 200x200 screen...');
         await withBleLock(async () => {
+          await charTime.writeValue(enc.encode('MODE:WATCH'));
+          await new Promise(r => setTimeout(r, 380));
           await readTelemetryUnlocked();
           await readScreenUnlocked();
         });
@@ -543,7 +545,7 @@
           log(mode === 'WATCH'
             ? 'Switched Watchy to Live Watchface & Menu Mode (use SW1-SW4 to navigate)!'
             : 'Switched Watchy to BLE Media Remote Mode.');
-          await new Promise(r => setTimeout(r, 250));
+          await new Promise(r => setTimeout(r, 380));
           await readTelemetryUnlocked();
           await readScreenUnlocked();
         } catch (err) {
@@ -557,7 +559,7 @@
         try {
           await charTime.writeValue(enc.encode(`BTN:${btnNum}`));
           log(`Pressed SW${btnNum} on Watchy`);
-          await new Promise(r => setTimeout(r, 320));
+          await new Promise(r => setTimeout(r, 380));
           await readTelemetryUnlocked();
           await readScreenUnlocked();
         } catch (err) {
