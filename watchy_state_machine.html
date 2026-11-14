@@ -151,6 +151,7 @@
 <li><strong>ShowButtonsState</strong>: Displays an overlay hint mapping SW1-SW4 physical buttons to their current logical functions. Times out after 10s.</li>
 <li><strong>MedInfoState</strong>: Displays emergency medical info (e.g., Name, ID, Allergies).</li>
 <li><strong>WeatherState</strong>: Displays a full-screen weather report (icon, temperature, sky condition, feels-like, humidity, wind, and pressure) fetched from Open-Meteo.</li>
+<li><strong>BleRemoteState</strong>: Starts a <code>NimBLE</code> server (<code>Watchy4Granny</code>) providing BLE HID Consumer Control media keys (<code>SW3: Vol+</code>, <code>SW4: Vol-</code>, <code>SW1: Play/Pause</code>) and the BLE Digital Twin GATT Service (<code>19b10000-e8f2-537e-4f6c-d104768a1214</code>) for phone-assisted Time Sync, Weather Location Sync, Weather Push, and Status telemetry.</li>
 <li><strong>FindFoneState</strong>: Connects to WiFi and triggers an IFTTT webhook to ping the user's phone.</li>
 <li><strong>SuspendState</strong>: A low-power lock screen triggered when the battery hits critical levels. Forces the UI to sleep to prevent accidental usage but can be temporarily awakened (via SW3) when plugged into a charger.</li>
 </ul>

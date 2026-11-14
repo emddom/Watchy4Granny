@@ -33,7 +33,7 @@ flowchart LR
     U_FIND -->|"SW1 -> InsertHandleFindPhone()"| ST_FIND["FindFoneState (WiFi + IFTTT Webhook)"]
     U_MED -->|"SW1 -> InsertHandleMedInfo()"| ST_MED["MedInfoState (Emergency Medical Info)"]
     U_WEAT -->|"SW1 -> InsertHandleWeather()"| ST_WEAT["WeatherState (Open-Meteo Weather Report)"]
-    U_BLE -->|"SW1 -> InsertHandleBleRemote()"| ST_BLE["BleRemoteState (NimBLE HID Media Control)"]
+    U_BLE -->|"SW1 -> InsertHandleBleRemote()"| ST_BLE["BleRemoteState (BLE HID + Digital Twin GATT)"]
 
     %% Alarms Submenu (GSR_MENU_INALARMS: 6..10)
     subgraph SUB_ALARMS["Alarms Submenu (GSR_MENU_INALARMS)"]
@@ -139,6 +139,6 @@ stateDiagram-v2
 * **ShowButtonsState**: Triggered via `Menu -> Utilities -> Show Buttons`. Displays an overlay mapping `SW1`–`SW4` physical buttons to their logical functions. Ignores button inputs for the first 1 second to prevent bouncing from menu selection, then dismisses on any button press or a 10s timeout.
 * **MedInfoState**: Triggered via `Menu -> Utilities -> Med Info`. Displays emergency medical info.
 * **WeatherState**: Triggered via `Menu -> Utilities -> Weather`. Displays a full-screen weather report (icon, temperature, sky condition, feels-like, humidity, wind, and pressure) fetched from Open-Meteo, automatically requesting an update if stale and allowing manual refresh via `SW3`.
-* **BleRemoteState**: Triggered via `Menu -> Utilities -> BLE Remote`. Starts a `NimBLE` HID Consumer Control server (`Watchy4Granny`) to send `Volume Up` (`SW3`), `Volume Down` (`SW4`), and `Play/Pause` (`SW1`) media keys to a paired Android phone; exits and stops BLE on `SW2`.
+* **BleRemoteState**: Triggered via `Menu -> Utilities -> BLE Remote`. Starts a `NimBLE` server (`Watchy4Granny`) exposing both a **BLE HID Consumer Control** service (`Volume Up` on `SW3`, `Volume Down` on `SW4`, `Play/Pause` on `SW1`) and a **BLE Digital Twin GATT** service (`19b10000-e8f2-537e-4f6c-d104768a1214`) for syncing phone time/timezone, weather coordinates, weather data, and device status; exits and stops BLE on `SW2`.
 * **FindFoneState**: Triggered via `Menu -> Utilities -> Find Phone`. Connects to WiFi and pings the user's phone via IFTTT.
 * **SuspendState**: A low-power lock screen triggered when the battery drops to/below the configured suspend threshold (`Options -> Suspend Level`). Can be awakened via `SW3` while charging.

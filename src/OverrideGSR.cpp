@@ -19,6 +19,139 @@ static String bleLastAction = "Ready";
 static NimBLEServer* bleServer = nullptr;
 static NimBLEHIDDevice* bleHid = nullptr;
 static NimBLECharacteristic* bleInputMedia = nullptr;
+static NimBLECharacteristic* bleTwinTimeChar = nullptr;
+static NimBLECharacteristic* bleTwinLocChar = nullptr;
+static NimBLECharacteristic* bleTwinWeatChar = nullptr;
+static NimBLECharacteristic* bleTwinStatusChar = nullptr;
+
+// Watchy4Granny Digital Twin GATT Service & Characteristic UUIDs
+static constexpr const char* TWIN_SERVICE_UUID     = "19b10000-e8f2-537e-4f6c-d104768a1214";
+static constexpr const char* TWIN_CHAR_TIME_UUID   = "19b10001-e8f2-537e-4f6c-d104768a1214";
+static constexpr const char* TWIN_CHAR_LOC_UUID    = "19b10002-e8f2-537e-4f6c-d104768a1214";
+static constexpr const char* TWIN_CHAR_WEAT_UUID   = "19b10003-e8f2-537e-4f6c-d104768a1214";
+static constexpr const char* TWIN_CHAR_STATUS_UUID = "19b10004-e8f2-537e-4f6c-d104768a1214";
+
+static String formatTwinTime() {
+    char buf[48];
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d,%ld",
+             WatchTime.Local.Year + 1900,
+             WatchTime.Local.Month + 1,
+             WatchTime.Local.Day,
+             WatchTime.Local.Hour,
+             WatchTime.Local.Minute,
+             WatchTime.Local.Second,
+             (long)WatchTime.UTC_RAW);
+    return String(buf);
+}
+
+static String formatTwinLocation() {
+    if (!uiSM.watchy) return "0.000000,0.000000";
+    double lat = uiSM.watchy->getWeatherLatitude(true);
+    double lon = uiSM.watchy->getWeatherLongitude(true);
+    char buf[40];
+    snprintf(buf, sizeof(buf), "%.6f,%.6f", lat, lon);
+    return String(buf);
+}
+
+static String formatTwinWeather() {
+    if (!uiSM.watchy) return "0,0,0,0,0.0,0,0";
+    bool ready = uiSM.watchy->IsWeatherReady();
+    int temp = ready ? uiSM.watchy->GetWeatherTemperature() : 0;
+    int feels = ready ? uiSM.watchy->GetWeatherTemperatureFeelsLike() : 0;
+    uint16_t cond = ready ? uiSM.watchy->GetWeatherID() : 0;
+    uint8_t hum = ready ? uiSM.watchy->GetWeatherHumidity() : 0;
+    float windMs = ready ? (uiSM.watchy->GetWeatherWindSpeed() / 3.6f) : 0.0f;
+    uint16_t pres = ready ? uiSM.watchy->GetWeatherPressure() : 0;
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%d,%d,%u,%u,%.1f,%u,%d",
+             temp, feels, cond, hum, windMs, pres, ready ? 1 : 0);
+    return String(buf);
+}
+
+static String formatTwinStatus() {
+    if (!uiSM.watchy) return "0,0.00,0,0";
+    float v = WatchyGSR::getBatteryVoltage();
+    int pct = 0;
+    if (v >= 4.20f) pct = 100;
+    else if (v <= 3.30f) pct = 0;
+    else pct = (int)((v - 3.30f) / (4.20f - 3.30f) * 100.0f);
+    uint32_t steps = uiSM.watchy->CurrentStepCount();
+    int chg = (uiSM.watchy->GetBatteryState() == 3) ? 1 : 0;
+    char buf[48];
+    snprintf(buf, sizeof(buf), "%d,%.2f,%lu,%d", pct, v, (unsigned long)steps, chg);
+    return String(buf);
+}
+
+static void setCharString(NimBLECharacteristic* pChar, const String& s) {
+    if (pChar) {
+        pChar->setValue((const uint8_t*)s.c_str(), s.length());
+    }
+}
+
+class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
+    void onRead(NimBLECharacteristic* pChar) {
+        std::string uuid = pChar->getUUID().toString();
+        if (uuid == TWIN_CHAR_TIME_UUID) {
+            setCharString(pChar, formatTwinTime());
+        } else if (uuid == TWIN_CHAR_LOC_UUID) {
+            setCharString(pChar, formatTwinLocation());
+        } else if (uuid == TWIN_CHAR_WEAT_UUID) {
+            setCharString(pChar, formatTwinWeather());
+        } else if (uuid == TWIN_CHAR_STATUS_UUID) {
+            setCharString(pChar, formatTwinStatus());
+        }
+    }
+
+    void onWrite(NimBLECharacteristic* pChar) {
+        if (!uiSM.watchy) return;
+        std::string uuid = pChar->getUUID().toString();
+        std::string raw = std::string(pChar->getValue());
+        String val = String(raw.c_str());
+        val.trim();
+        if (val.length() == 0) return;
+
+        if (uuid == TWIN_CHAR_TIME_UUID) {
+            int Y = 0, M = 0, D = 0, h = 0, m = 0, s = 0;
+            if (val.indexOf('-') > 0 && sscanf(val.c_str(), "%d-%d-%d %d:%d:%d", &Y, &M, &D, &h, &m, &s) >= 5) {
+                uiSM.watchy->SetLocalTimeFromBLE(Y, M, D, h, m, s);
+            } else {
+                int commaIdx = val.indexOf(',');
+                String epochStr = (commaIdx > 0) ? val.substring(0, commaIdx) : val;
+                String tzStr = (commaIdx > 0) ? val.substring(commaIdx + 1) : "";
+                tzStr.trim();
+                long long rawEpoch = atoll(epochStr.c_str());
+                if (rawEpoch > 100000000000LL) {
+                    rawEpoch /= 1000LL; // Convert milliseconds to seconds
+                }
+                if (rawEpoch > 1700000000LL) {
+                    uiSM.watchy->SetTimeFromBLE((time_t)rawEpoch, tzStr);
+                }
+            }
+            setCharString(pChar, formatTwinTime());
+            bleLastAction = "Time Synced";
+            uiSM.watchy->UpdateScreen();
+        } else if (uuid == TWIN_CHAR_LOC_UUID) {
+            int commaIdx = val.indexOf(',');
+            if (commaIdx > 0) {
+                double lat = val.substring(0, commaIdx).toDouble();
+                double lon = val.substring(commaIdx + 1).toDouble();
+                uiSM.watchy->SetWeatherLocationFromBLE(lat, lon);
+                setCharString(pChar, formatTwinLocation());
+                bleLastAction = "Loc Updated";
+                uiSM.watchy->UpdateScreen();
+            }
+        } else if (uuid == TWIN_CHAR_WEAT_UUID) {
+            float tempC = 0, feelsC = 0, windMs = 0;
+            unsigned int cond = 0, hum = 0, pres = 1013;
+            if (sscanf(val.c_str(), "%f,%f,%u,%u,%f,%u", &tempC, &feelsC, &cond, &hum, &windMs, &pres) >= 5) {
+                uiSM.watchy->SetWeatherFromBLE(tempC, feelsC, (uint16_t)cond, (uint8_t)hum, windMs * 3.6f, (uint16_t)pres);
+                setCharString(pChar, formatTwinWeather());
+                bleLastAction = "Weather Sync";
+                uiSM.watchy->UpdateScreen();
+            }
+        }
+    }
+};
 
 // Standard USB HID Consumer Control Report Descriptor (Report ID 1: 4 media keys + 4 padding bits)
 static const uint8_t hidMediaReportDescriptor[] = {
@@ -45,11 +178,14 @@ class WatchyBleServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer* pServer) {
         bleConnected = true;
         bleLastAction = "Connected";
+        if (showingBleRemote && pServer->getConnectedCount() < 3) {
+            NimBLEDevice::startAdvertising();
+        }
         if (uiSM.watchy) uiSM.watchy->UpdateScreen();
     }
     void onDisconnect(NimBLEServer* pServer) {
-        bleConnected = false;
-        bleLastAction = "Disconnected";
+        bleConnected = (pServer->getConnectedCount() > 0);
+        bleLastAction = bleConnected ? "Connected" : "Disconnected";
         if (showingBleRemote) {
             NimBLEDevice::startAdvertising();
         }
@@ -335,18 +471,24 @@ void OverrideGSR::drawWatchFace() {
         display.print(title);
 
         display.setFont(&aAntiCorona10pt7b);
-        display.setCursor(5, 55);
+        display.setCursor(5, 52);
         display.print("ID: Watchy4Granny");
 
-        display.setCursor(5, 82);
+        display.setCursor(5, 78);
         display.print(String("BLE: ") + (bleConnected ? "CONNECTED" : "PAIR / WAIT"));
 
-        display.setCursor(5, 112);
-        display.print("Sent: " + bleLastAction);
+        char timeBuf[24];
+        snprintf(timeBuf, sizeof(timeBuf), "Time: %02d:%02d:%02d",
+                 WatchTime.Local.Hour, WatchTime.Local.Minute, WatchTime.Local.Second);
+        display.setCursor(5, 104);
+        display.print(timeBuf);
 
-        display.setCursor(5, 152);
+        display.setCursor(5, 130);
+        display.print("Act: " + bleLastAction);
+
+        display.setCursor(5, 162);
         display.print("SW3: Vol+  SW4: Vol-");
-        display.setCursor(5, 180);
+        display.setCursor(5, 188);
         display.print("SW1: Play  SW2: Exit");
     } else if (callingForHelp) {
         display.fillScreen(BackColor());
@@ -449,9 +591,44 @@ void OverrideGSR::startBleHid() {
         bleHid->reportMap((uint8_t*)hidMediaReportDescriptor, sizeof(hidMediaReportDescriptor));
         bleHid->startServices();
 
+        // Digital Twin GATT Service (Time, Location, Weather, Status)
+        NimBLEService* twinService = bleServer->createService(TWIN_SERVICE_UUID);
+        WatchyTwinCharCallbacks* twinCallbacks = new WatchyTwinCharCallbacks();
+
+        bleTwinTimeChar = twinService->createCharacteristic(
+            TWIN_CHAR_TIME_UUID,
+            NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::NOTIFY
+        );
+        bleTwinTimeChar->setCallbacks(twinCallbacks);
+        setCharString(bleTwinTimeChar, formatTwinTime());
+
+        bleTwinLocChar = twinService->createCharacteristic(
+            TWIN_CHAR_LOC_UUID,
+            NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::NOTIFY
+        );
+        bleTwinLocChar->setCallbacks(twinCallbacks);
+        setCharString(bleTwinLocChar, formatTwinLocation());
+
+        bleTwinWeatChar = twinService->createCharacteristic(
+            TWIN_CHAR_WEAT_UUID,
+            NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::NOTIFY
+        );
+        bleTwinWeatChar->setCallbacks(twinCallbacks);
+        setCharString(bleTwinWeatChar, formatTwinWeather());
+
+        bleTwinStatusChar = twinService->createCharacteristic(
+            TWIN_CHAR_STATUS_UUID,
+            NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
+        );
+        bleTwinStatusChar->setCallbacks(twinCallbacks);
+        setCharString(bleTwinStatusChar, formatTwinStatus());
+
+        twinService->start();
+
         NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
         pAdvertising->setAppearance(HID_KEYBOARD);
         pAdvertising->addServiceUUID(bleHid->hidService()->getUUID());
+        pAdvertising->addServiceUUID(TWIN_SERVICE_UUID);
         pAdvertising->setScanResponse(true);
         pAdvertising->start();
 

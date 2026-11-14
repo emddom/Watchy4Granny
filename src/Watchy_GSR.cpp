@@ -4976,6 +4976,71 @@ bool WatchyGSR::filterGeo(double geoValue, bool isLatitude) { return !(isLatitud
 double WatchyGSR::getWeatherLatitude(bool useStatic) { return (useStatic & WeatherData.UseStaticPOS) ? WeatherData.StaticLat : WeatherData.LastLat; }
 double WatchyGSR::getWeatherLongitude(bool useStatic) { return (useStatic & WeatherData.UseStaticPOS) ? WeatherData.StaticLon : WeatherData.LastLon; }
 
+void WatchyGSR::SetTimeFromBLE(time_t utcEpoch, String tzOlson) {
+    if (tzOlson.length() > 0) {
+        String newTZ = OP.getPOSIX(tzOlson);
+        if (newTZ != OP.TZMISSING) {
+            WatchTime.TimeZone = tzOlson;
+            if (OkNVS(GName)) {
+                NVS.setString(GTZ, newTZ);
+                NVS.commit();
+            }
+            OP.setCurrentPOSIX(newTZ);
+        }
+    }
+    if (utcEpoch < 1700000000) return;
+    time_t diff = utcEpoch - WatchTime.UTC_RAW;
+    diff -= (diff % 60);
+    for (uint8_t i = 0; i < 5; i++) {
+        Battery.ReadFloat[i].Stamp += diff;
+    }
+    WatchTime.UTC_RAW = utcEpoch;
+    SRTC.doBreakTime(WatchTime.UTC_RAW, WatchTime.UTC);
+    SRTC.set(WatchTime.UTC);
+    NTPData.Last = WatchTime.UTC_RAW;
+    UpdateClock();
+    UpdateDisp |= Showing();
+}
+
+void WatchyGSR::SetLocalTimeFromBLE(int year, int month, int day, int hour, int minute, int second) {
+    OP.setCurrentTimeZone();
+    struct tm tmLocal = {};
+    tmLocal.tm_year = year - 1900;
+    tmLocal.tm_mon = month - 1;
+    tmLocal.tm_mday = day;
+    tmLocal.tm_hour = hour;
+    tmLocal.tm_min = minute;
+    tmLocal.tm_sec = second;
+    tmLocal.tm_isdst = -1;
+    time_t utcEpoch = mktime(&tmLocal);
+    if (utcEpoch > 1700000000) {
+        SetTimeFromBLE(utcEpoch);
+    }
+}
+
+void WatchyGSR::SetWeatherLocationFromBLE(double lat, double lon) {
+    if (!filterGeo(lat, true) || !filterGeo(lon, false)) return;
+    WeatherData.StaticLat = lat;
+    WeatherData.StaticLon = lon;
+    WeatherData.LastLat = lat;
+    WeatherData.LastLon = lon;
+    WeatherData.UseStaticPOS = true;
+    Options.NeedsSaving = true;
+    RecordSettings();
+}
+
+void WatchyGSR::SetWeatherFromBLE(float tempC, float feelsLikeC, uint16_t id, uint8_t humidity, float windKmh, uint16_t pressure) {
+    WeatherData.Weather.Temperature.Current = tempC;
+    WeatherData.Weather.Temperature.FeelsLike = feelsLikeC;
+    WeatherData.Weather.ID = id;
+    WeatherData.Weather.Humidity = humidity;
+    WeatherData.Weather.WindSpeed = windKmh;
+    WeatherData.Weather.Pressure = pressure;
+    WeatherData.goneStale = WatchTime.UTC_RAW;
+    WeatherData.Ready = true;
+    UpdateDisp |= Showing();
+}
+
 /* API here for Battery Levels */
 float WatchyGSR::getLowBattery(bool useCritical) { return (useCritical ? Battery.MinLevel : Battery.LowLevel) + Battery.LowError; }
 float WatchyGSR::getLowBatteryRadio() { return Battery.RadioLevel + Battery.LowError; }

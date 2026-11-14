@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Watchy4Granny — BLE Digital Twin</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --success: #22c55e;
+      --warn: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 760px;
+      margin-inline: auto;
+    }
+    h1 { font-size: 1.5rem; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 18px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-size: 1.05rem;
+      margin: 0 0 12px;
+      color: var(--accent);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    button {
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    button.secondary {
+      background: #334155;
+      color: var(--text);
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    input {
+      background: #0f172a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 0.9rem;
+      flex: 1;
+      min-width: 120px;
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .stat {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
+    .stat-val { font-size: 1.1rem; font-weight: 700; margin-top: 4px; font-family: monospace; }
+    .badge {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: #334155;
+      color: var(--muted);
+    }
+    .badge.connected { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+    #log {
+      font-family: monospace;
+      font-size: 0.82rem;
+      background: #090d16;
+      padding: 10px;
+      border-radius: 8px;
+      max-height: 150px;
+      overflow-y: auto;
+      color: #cbd5e1;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+      font-family: monospace;
+    }
+    th { color: var(--muted); font-family: sans-serif; }
+  </style>
+</head>
+<body>
+  <h1>Watchy4Granny — BLE Digital Twin</h1>
+  <div class="sub">
+    Open <strong>Menu &rarr; Utilities &rarr; BLE Remote</strong> on Watchy, then connect below (Chrome on Android, Chromebook, or Linux/Desktop).
+  </div>
+
+  <div class="card">
+    <h2>
+      <span>Connection &amp; Watch Status</span>
+      <span id="statusBadge" class="badge">DISCONNECTED</span>
+    </h2>
+    <div class="row">
+      <button id="btnConnect" onclick="connectWatchy()">Connect Watchy BLE</button>
+      <button id="btnRefresh" class="secondary" onclick="readAll()" disabled>Read All from Watchy</button>
+    </div>
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-label">Watchy Time</div>
+        <div class="stat-val" id="valTime">--</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Battery</div>
+        <div class="stat-val" id="valBatt">--</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Steps</div>
+        <div class="stat-val" id="valSteps">--</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Weather on Watch</div>
+        <div class="stat-val" id="valWeat">--</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>1. BLE Time Sync (No WiFi Needed)</h2>
+    <p class="sub" style="margin-top:0">
+      Syncs your phone's exact UTC clock and timezone (<code id="localTzLabel"></code>) directly to Watchy over BLE.
+    </p>
+    <div class="row">
+      <button id="btnSyncTime" onclick="syncTime()" disabled>Sync Phone Time to Watchy Now</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Weather Location &amp; Phone-Assisted Weather Push</h2>
+    <p class="sub" style="margin-top:0">
+      Update Watchy's saved coordinates (NVS) and optionally fetch Open-Meteo weather using your phone/PC's internet and push it to Watchy over BLE.
+    </p>
+    <div class="row">
+      <input id="inpCity" type="text" placeholder="Search city name (e.g. Helsinki, Bucharest, London)..." />
+      <button class="secondary" onclick="searchCity()">Find City Coordinates</button>
+    </div>
+    <div class="row">
+      <input id="inpLat" type="number" step="0.0001" placeholder="Latitude (e.g. 60.1699)" />
+      <input id="inpLon" type="number" step="0.0001" placeholder="Longitude (e.g. 24.9384)" />
+      <button class="secondary" onclick="usePhoneGps()">Use Browser GPS</button>
+    </div>
+    <div class="row">
+      <button id="btnSaveLoc" onclick="writeLocation()" disabled>Save Location to Watchy</button>
+      <button id="btnPushWeather" onclick="fetchAndPushWeather()" disabled>Fetch Weather &amp; Push to Watchy</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Activity Log</h2>
+    <div id="log">Ready. Put Watchy in Menu -> Utilities -> BLE Remote.</div>
+  </div>
+
+  <div class="card">
+    <h2>MIT App Inventor / Thunkable GATT Reference</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Characteristic</th>
+          <th>UUID</th>
+          <th>Read / Write String Format</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>SERVICE</td>
+          <td>19b10000-e8f2-537e-4f6c-d104768a1214</td>
+          <td>Primary Digital Twin Service</td>
+        </tr>
+        <tr>
+          <td>TIME</td>
+          <td>19b10001-e8f2-537e-4f6c-d104768a1214</td>
+          <td>
+            Read: <code>YYYY-MM-DD HH:MM:SS,utcEpoch</code><br/>
+            Write: <code>utcEpochSec</code> OR <code>utcEpochMs</code> (e.g. <code>Clock1.SystemTime</code>) OR <code>YYYY-MM-DD HH:MM:SS</code>
+          </td>
+        </tr>
+        <tr>
+          <td>LOCATION</td>
+          <td>19b10002-e8f2-537e-4f6c-d104768a1214</td>
+          <td>Read/Write: <code>lat,lon</code> (e.g. <code>47.497913,19.040236</code>)</td>
+        </tr>
+        <tr>
+          <td>WEATHER</td>
+          <td>19b10003-e8f2-537e-4f6c-d104768a1214</td>
+          <td>Read/Write: <code>tempC,feelsC,wmoCode,humidity,windMs,pressure</code></td>
+        </tr>
+        <tr>
+          <td>STATUS</td>
+          <td>19b10004-e8f2-537e-4f6c-d104768a1214</td>
+          <td>Read: <code>batteryPct,voltage,steps,charging</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const TWIN_SERVICE_UUID     = '19b10000-e8f2-537e-4f6c-d104768a1214';
+    const TWIN_CHAR_TIME_UUID   = '19b10001-e8f2-537e-4f6c-d104768a1214';
+    const TWIN_CHAR_LOC_UUID    = '19b10002-e8f2-537e-4f6c-d104768a1214';
+    const TWIN_CHAR_WEAT_UUID   = '19b10003-e8f2-537e-4f6c-d104768a1214';
+    const TWIN_CHAR_STATUS_UUID = '19b10004-e8f2-537e-4f6c-d104768a1214';
+
+    let bleDevice = null;
+    let charTime = null, charLoc = null, charWeat = null, charStatus = null;
+    const dec = new TextDecoder();
+    const enc = new TextEncoder();
+
+    document.getElementById('localTzLabel').textContent =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local TZ';
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      const t = new Date().toLocaleTimeString();
+      el.innerHTML = `[${t}] ${msg}<br/>` + el.innerHTML;
+    }
+
+    function setConnectedUi(connected) {
+      const badge = document.getElementById('statusBadge');
+      badge.textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
+      badge.className = 'badge' + (connected ? ' connected' : '');
+      ['btnRefresh', 'btnSyncTime', 'btnSaveLoc', 'btnPushWeather'].forEach(id => {
+        document.getElementById(id).disabled = !connected;
+      });
+    }
+
+    async function connectWatchy() {
+      if (!navigator.bluetooth) {
+        log('ERROR: WebBluetooth (navigator.bluetooth) is not available in this browser.');
+        log('-> Firefox does not support WebBluetooth. Please open this page in Chrome, Chromium, or Edge.');
+        log('-> On Linux Chrome/Chromium, enable: chrome://flags/#enable-web-bluetooth and chrome://flags/#enable-experimental-web-platform-features, and open via http://localhost:8080/digital_twin.html');
+        return;
+      }
+      try {
+        log('Requesting Watchy4Granny BLE device...');
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'Watchy4Granny' }, { services: [TWIN_SERVICE_UUID] }],
+          optionalServices: [TWIN_SERVICE_UUID]
+        });
+        bleDevice.addEventListener('gattserverdisconnected', () => {
+          log('Disconnected from Watchy.');
+          setConnectedUi(false);
+        });
+        log('Connecting to GATT server...');
+        const server = await bleDevice.gatt.connect();
+        const service = await server.getPrimaryService(TWIN_SERVICE_UUID);
+        charTime   = await service.getCharacteristic(TWIN_CHAR_TIME_UUID);
+        charLoc    = await service.getCharacteristic(TWIN_CHAR_LOC_UUID);
+        charWeat   = await service.getCharacteristic(TWIN_CHAR_WEAT_UUID);
+        charStatus = await service.getCharacteristic(TWIN_CHAR_STATUS_UUID);
+
+        setConnectedUi(true);
+        log('Connected! Reading current Watchy state...');
+        await readAll();
+      } catch (err) {
+        log('Error: ' + err.message);
+      }
+    }
+
+    async function readAll() {
+      try {
+        const tStr = dec.decode(await charTime.readValue());
+        const [dtPart] = tStr.split(',');
+        document.getElementById('valTime').textContent = dtPart || tStr;
+
+        const sStr = dec.decode(await charStatus.readValue());
+        const [pct, volt, steps, chg] = sStr.split(',');
+        document.getElementById('valBatt').textContent = `${pct}% (${volt}V)${chg === '1' ? ' ⚡' : ''}`;
+        document.getElementById('valSteps').textContent = steps;
+
+        const lStr = dec.decode(await charLoc.readValue());
+        const [lat, lon] = lStr.split(',');
+        if (lat && lon) {
+          document.getElementById('inpLat').value = parseFloat(lat).toFixed(4);
+          document.getElementById('inpLon').value = parseFloat(lon).toFixed(4);
+        }
+
+        const wStr = dec.decode(await charWeat.readValue());
+        const [tempC, feelsC, code, hum, windMs, pres, ready] = wStr.split(',');
+        document.getElementById('valWeat').textContent =
+          ready === '1' ? `${tempC}°C, ${windMs} m/s` : 'No Data';
+
+        log(`State read — Time: ${dtPart} | Loc: ${lStr} | Batt: ${pct}%`);
+      } catch (err) {
+        log('Read error: ' + err.message);
+      }
+    }
+
+    async function syncTime() {
+      try {
+        const epochSec = Math.floor(Date.now() / 1000);
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        const payload = tz ? `${epochSec},${tz}` : `${epochSec}`;
+        await charTime.writeValue(enc.encode(payload));
+        log(`Synced Time to Watchy: ${payload}`);
+        await readAll();
+      } catch (err) {
+        log('Time sync error: ' + err.message);
+      }
+    }
+
+    async function searchCity() {
+      const q = document.getElementById('inpCity').value.trim();
+      if (!q) {
+        log('Type a city name first.');
+        return;
+      }
+      try {
+        log(`Searching coordinates for "${q}"...`);
+        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=en&format=json`);
+        const data = await res.json();
+        if (!data.results || data.results.length === 0) {
+          log(`No city found for "${q}".`);
+          return;
+        }
+        const place = data.results[0];
+        document.getElementById('inpLat').value = place.latitude.toFixed(6);
+        document.getElementById('inpLon').value = place.longitude.toFixed(6);
+        log(`Found: ${place.name}, ${place.country || ''} (${place.latitude.toFixed(4)}, ${place.longitude.toFixed(4)})`);
+      } catch (err) {
+        log('City search error: ' + err.message);
+      }
+    }
+
+    function usePhoneGps() {
+      if (!navigator.geolocation) {
+        log('Geolocation not supported by browser.');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(pos => {
+        document.getElementById('inpLat').value = pos.coords.latitude.toFixed(6);
+        document.getElementById('inpLon').value = pos.coords.longitude.toFixed(6);
+        log(`Got GPS: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+      }, err => log('GPS error: ' + err.message));
+    }
+
+    async function writeLocation() {
+      try {
+        const lat = parseFloat(document.getElementById('inpLat').value);
+        const lon = parseFloat(document.getElementById('inpLon').value);
+        if (isNaN(lat) || isNaN(lon)) {
+          log('Enter valid Latitude and Longitude first.');
+          return;
+        }
+        const payload = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+        await charLoc.writeValue(enc.encode(payload));
+        log(`Updated Watchy Location (saved to NVS): ${payload}`);
+        await readAll();
+      } catch (err) {
+        log('Location write error: ' + err.message);
+      }
+    }
+
+    async function fetchAndPushWeather() {
+      try {
+        const lat = parseFloat(document.getElementById('inpLat').value);
+        const lon = parseFloat(document.getElementById('inpLon').value);
+        if (isNaN(lat) || isNaN(lon)) {
+          log('Enter or get GPS coordinates first.');
+          return;
+        }
+        await writeLocation();
+        log('Fetching live weather from Open-Meteo on phone...');
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m&wind_speed_unit=ms`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const c = data.current;
+        const payload = [
+          Math.round(c.temperature_2m),
+          Math.round(c.apparent_temperature),
+          c.weather_code,
+          Math.round(c.relative_humidity_2m),
+          c.wind_speed_10m.toFixed(1),
+          Math.round(c.surface_pressure)
+        ].join(',');
+        await charWeat.writeValue(enc.encode(payload));
+        log(`Pushed Weather to Watchy: ${payload}`);
+        await readAll();
+      } catch (err) {
+        log('Weather push error: ' + err.message);
+      }
+    }
+  </script>
+</body>
+</html>

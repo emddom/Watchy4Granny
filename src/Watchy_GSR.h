@@ -166,6 +166,10 @@ class WatchyGSR{
         virtual bool filterGeo(double geoValue, bool isLatitude = false) final;
         virtual double getWeatherLatitude(bool useStatic = false) final;
         virtual double getWeatherLongitude(bool useStatic = false) final;
+        virtual void SetTimeFromBLE(time_t utcEpoch, String tzOlson = "") final;
+        virtual void SetLocalTimeFromBLE(int year, int month, int day, int hour, int minute, int second) final;
+        virtual void SetWeatherLocationFromBLE(double lat, double lon) final;
+        virtual void SetWeatherFromBLE(float tempC, float feelsLikeC, uint16_t id, uint8_t humidity, float windKmh, uint16_t pressure) final;
         virtual float getLowBattery(bool useCritical = false) final;
         virtual float getLowBatteryRadio() final;
         virtual String getCurrentNTPServer() final;

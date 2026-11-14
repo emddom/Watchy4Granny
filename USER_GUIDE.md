@@ -36,7 +36,13 @@ To prevent accidental button presses while wearing the watch, the custom assisti
    * **`Find Phone`**: Connects to WiFi and triggers the IFTTT webhook to ring your phone (`FINDING PHONE` -> `PHONE PINGED!`). Press **SW2 (Back)** at any time to cancel/exit.
    * **`Med Info`**: Displays emergency identification (Name, ID, Allergies, Birthdate). Press **SW2 (Back)** to return to the Watch Face.
    * **`Weather`**: Displays the dedicated Open-Meteo weather report (condition icon, temperature in °C, sky condition, feels-like, humidity, wind speed in m/s, and pressure). Automatically fetches fresh data over WiFi if needed; press **SW3 (Up)** to manually refresh or **SW2 (Back)** to return to the Watch Face.
-   * **`BLE Remote`**: Starts Bluetooth Low Energy (BLE) HID advertising as **`Watchy4Granny`**. Pair with it from your Android phone's Bluetooth settings, then use **SW3 (Up)** for **Volume Up**, **SW4 (Down)** for **Volume Down**, **SW1 (Enter)** for **Play/Pause**, and **SW2 (Back)** to disconnect and return to the Watch Face.
+   * **`BLE Remote`**: Starts Bluetooth Low Energy (BLE) advertising as **`Watchy4Granny`** with both:
+     1. **BLE HID Media Control**: Pair with `Watchy4Granny` in your phone's Bluetooth settings, then use **SW3 (Up)** for **Volume Up**, **SW4 (Down)** for **Volume Down**, **SW1 (Enter)** for **Play/Pause**, and **SW2 (Back)** to disconnect and return to the Watch Face.
+     2. **BLE Digital Twin GATT Service (`19b10000-e8f2-537e-4f6c-d104768a1214`)**: Allows your phone (via `digital_twin.html` in Chrome, MIT App Inventor, or Thunkable) to **sync phone time & timezone to Watchy without WiFi**, read/update saved weather coordinates (`lat,lon`), push Open-Meteo weather data directly from the phone to Watchy, and read battery/step status.
+        * **`TIME` (`19b10001-e8f2-537e-4f6c-d104768a1214`)**: Read returns `YYYY-MM-DD HH:MM:SS,utcEpoch`. Write accepts Unix epoch seconds (`1731580000`), milliseconds (`Clock1.SystemTime`), `epochSec,OlsonTZ` (e.g. `1731580000,Europe/Bucharest`), or local `YYYY-MM-DD HH:MM:SS`.
+        * **`LOCATION` (`19b10002-e8f2-537e-4f6c-d104768a1214`)**: Read/Write `lat,lon` (persisted to NVS).
+        * **`WEATHER` (`19b10003-e8f2-537e-4f6c-d104768a1214`)**: Read/Write `tempC,feelsLikeC,wmoCode,humidity,windMs,pressure`.
+        * **`STATUS` (`19b10004-e8f2-537e-4f6c-d104768a1214`)**: Read `batteryPct,batteryVoltage,steps,charging`.
 
 ---
 
