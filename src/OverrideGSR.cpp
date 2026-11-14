@@ -12,6 +12,7 @@ RTC_DATA_ATTR bool showingButtons = false;
 RTC_DATA_ATTR bool showingWeather = false;
 bool showingBleRemote = false;
 bool bleMirrorMode = false;
+volatile uint8_t pendingBleMode = 0;
 RTC_DATA_ATTR time_t suspendTime = 0;
 
 using GxDisplayType = GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT>;
@@ -149,28 +150,19 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
             }
             screenReadMode = false;
             if (val == "MODE:WATCH") {
-                bleMirrorMode = true;
-                uiSM.setState(&watchfaceState);
-                uiSM.watchy->UpdateScreen();
+                pendingBleMode = 1;
                 return;
             } else if (val == "MODE:BLE") {
-                bleMirrorMode = false;
-                uiSM.setState(&bleRemoteState);
-                uiSM.watchy->UpdateScreen();
+                pendingBleMode = 2;
                 return;
             } else if (val == "MODE:OFF") {
-                bleMirrorMode = false;
-                uiSM.setState(&watchfaceState);
-                uiSM.watchy->stopBleHid();
-                uiSM.watchy->UpdateScreen();
+                pendingBleMode = 3;
                 return;
             } else if (val.startsWith("BTN:")) {
                 int btn = atoi(val.c_str() + 4);
                 if (btn >= 1 && btn <= 4) {
                     if (showingBleRemote && btn == 2) {
-                        bleMirrorMode = true;
-                        uiSM.setState(&watchfaceState);
-                        uiSM.watchy->UpdateScreen();
+                        pendingBleMode = 1;
                     } else {
                         Button = (uint8_t)btn;
                     }
@@ -589,6 +581,9 @@ void OverrideGSR::drawWatchFace() {
         display.setCursor(10, 130);
         display.print("(Check settings)");
     }
+}
+
+void OverrideGSR::InsertPostDraw() {
     screenFrameSeq++;
 }
 

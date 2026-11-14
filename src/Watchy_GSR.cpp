@@ -991,6 +991,7 @@ void WatchyGSR::showWatchFace(){
   display.setFullWindow();
   if (GuiMode == GSR_GAMEON) drawGame(); else drawWatchFace();
   WatchyGSR::drawLogOutput();
+  InsertPostDraw();
   display.display(!Updates.Full); //partial refresh
   if (!(InTurbo() || SoundActive() || !DarkWait())) DisplaySleep();
   DoHaptic=false;
@@ -3864,9 +3865,11 @@ bool WatchyGSR::GetNoStatus() { return (WatchStyles.Options[Options.WatchFaceSty
 bool WatchyGSR::GetMenuOverride() { return (WatchStyles.Options[Options.WatchFaceStyle] & GSR_MOV); }
 void WatchyGSR::RegisterWatchFaces(){}
 void WatchyGSR::ShowDefaultMenu() { if (GetMenuOverride() && (GuiMode == GSR_WATCHON || GuiMode == GSR_GAMEON)) { GuiMode = GSR_MENUON; DoHaptic = true; UpdateDisp = true; SetTurbo(); } }
+void WatchyGSR::CloseMenu() { if (GuiMode == GSR_MENUON) { GuiMode = GSR_WATCHON; Menu.Item = GSR_MENU_STEPS; Menu.Style = GSR_MENU_INNORMAL; Menu.SubItem = 0; Menu.SubSubItem = 0; } }
 void WatchyGSR::ShowGame() { if (Options.Game != 255) { Menu.SubItem = 0; GuiMode = GSR_GAMEON; UpdateDisp = true; } }
 void WatchyGSR::HideGame() { if (GuiMode = GSR_GAMEON) { Menu.SubItem = 0; GuiMode = GSR_WATCHON; UpdateDisp = true; } }
-void WatchyGSR::UpdateScreen() { UpdateDisp |= Showing(); Updates.Drawn = true; }
+void WatchyGSR::UpdateScreen(bool Full) { if (Full) Updates.Full = true; UpdateDisp |= Showing(); Updates.Drawn = true; }
+void WatchyGSR::InsertPostDraw() {}
 void WatchyGSR::GameStatus(bool NeedAttention) { if (NeedAttention != Options.GameStatus) UpdateScreen(); Options.GameStatus = NeedAttention; }
 bool WatchyGSR::GameStatusOn() { return Options.GameStatus; }
 void WatchyGSR::initAddOn(WatchyGSR *NewAddOn){

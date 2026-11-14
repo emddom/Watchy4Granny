@@ -29,6 +29,7 @@ extern RTC_DATA_ATTR bool showingButtons;
 extern RTC_DATA_ATTR bool showingWeather;
 extern bool showingBleRemote;
 extern bool bleMirrorMode;
+extern volatile uint8_t pendingBleMode;
 extern RTC_DATA_ATTR time_t suspendTime;
 
 
@@ -43,6 +44,7 @@ class OverrideGSR : public WatchyGSR {
     void InsertWiFiEnding() override;
     void InsertOnMinute() override;
     void drawWatchFace() override;
+    void InsertPostDraw() override;
     bool InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) override;
     bool InsertNeedAwake(bool GoingAsleep) override;
     void InsertHandleShowButtons() override;

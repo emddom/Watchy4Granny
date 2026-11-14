@@ -16,6 +16,23 @@ UiStateMachine::UiStateMachine(OverrideGSR* w) : StateMachine(&watchfaceState), 
 }
 
 void UiStateMachine::update() {
+    if (pendingBleMode != 0) {
+        uint8_t modeCmd = pendingBleMode;
+        pendingBleMode = 0;
+        if (modeCmd == 1) { // MODE:WATCH
+            bleMirrorMode = true;
+            setState(&watchfaceState);
+        } else if (modeCmd == 2) { // MODE:BLE
+            bleMirrorMode = false;
+            setState(&bleRemoteState);
+        } else if (modeCmd == 3) { // MODE:OFF
+            bleMirrorMode = false;
+            setState(&watchfaceState);
+            watchy->stopBleHid();
+            watchy->UpdateScreen(true);
+        }
+    }
+
     if (Button) {
         uint8_t b = Button;
         Button = 0;
@@ -45,7 +62,8 @@ void UiStateMachine::handleEvent(int event) {
 // WatchfaceState implementation
 void WatchfaceState::enter(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
-    usm->watchy->showWatchFace();
+    usm->watchy->CloseMenu();
+    usm->watchy->UpdateScreen(true);
 }
 
 void WatchfaceState::execute(StateMachine* sm) {
@@ -119,7 +137,8 @@ void MenuState::handleButton(StateMachine* sm, uint8_t button) {
 void MedInfoState::enter(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     showingMedInfo = true;
-    usm->watchy->UpdateScreen();
+    usm->watchy->CloseMenu();
+    usm->watchy->UpdateScreen(true);
 }
 
 void MedInfoState::execute(StateMachine* sm) {
@@ -196,7 +215,8 @@ void ShowButtonsState::enter(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     showingButtons = true;
     showButtonsStartTime = millis();
-    usm->watchy->UpdateScreen();
+    usm->watchy->CloseMenu();
+    usm->watchy->UpdateScreen(true);
 }
 
 void ShowButtonsState::execute(StateMachine* sm) {
@@ -215,7 +235,7 @@ void ShowButtonsState::execute(StateMachine* sm) {
 void ShowButtonsState::exit(StateMachine* sm) {
     showingButtons = false;
     UiStateMachine* usm = (UiStateMachine*)sm;
-    usm->watchy->UpdateScreen();
+    usm->watchy->UpdateScreen(true);
 }
 
 void ShowButtonsState::handleButton(StateMachine* sm, uint8_t button) {
@@ -230,10 +250,11 @@ void ShowButtonsState::handleButton(StateMachine* sm, uint8_t button) {
 void WeatherState::enter(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     showingWeather = true;
+    usm->watchy->CloseMenu();
     if (!usm->watchy->IsWeatherAvailable()) {
         usm->watchy->StartWeather();
     }
-    usm->watchy->UpdateScreen();
+    usm->watchy->UpdateScreen(true);
 }
 
 void WeatherState::execute(StateMachine* sm) {
@@ -263,8 +284,9 @@ void BleRemoteState::enter(StateMachine* sm) {
     showingBleRemote = true;
     bleMirrorMode = false;
     bleRemoteEnterTime = millis();
+    usm->watchy->CloseMenu();
     usm->watchy->startBleHid();
-    usm->watchy->UpdateScreen();
+    usm->watchy->UpdateScreen(true);
 }
 
 void BleRemoteState::execute(StateMachine* sm) {

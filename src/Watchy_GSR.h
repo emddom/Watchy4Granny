@@ -104,9 +104,11 @@ class WatchyGSR{
         virtual void drawWeather(bool Status = false);
         virtual void RegisterWatchFaces();
         virtual void ShowDefaultMenu() final;
+        virtual void CloseMenu() final;
         virtual void ShowGame() final;
         virtual void HideGame() final;
-        virtual void UpdateScreen() final;
+        virtual void UpdateScreen(bool Full = false) final;
+        virtual void InsertPostDraw();
         virtual void GameStatus(bool NeedAttention) final;
         virtual bool GameStatusOn() final;
         virtual uint8_t AddWatchStyle(String StyleName, WatchyGSR *AddOn, bool IsGame = false) final;
