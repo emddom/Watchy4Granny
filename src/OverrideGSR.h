@@ -52,10 +52,25 @@ class OverrideGSR : public WatchyGSR {
     void InsertHandleMedInfo() override;
     void InsertHandleWeather() override;
     void InsertHandleBleRemote() override;
+    void InsertAddWeb() override;
 
     void startBleHid();
     void stopBleHid();
+    void requestBleWeather();
     void sendBleMediaKey(uint8_t mask, const char* label);
+    bool isBleRunning();
+    bool isBleConnected() const;
+    void refreshBleActivity();
+    void tickBleTimeout();
+
+    void recordWifiActivity();
+    unsigned long getWifiIdleSeconds() const;
+
+    bool isBleWeatherPending() const;
+    void notifyWeatherComplete();
+    unsigned long getWeatherCompleteTime() const;
+    void clearWeatherCompleteTime();
+    void extendBleKeepAlive(unsigned long ms);
 };
 
 #endif // OVERRIDEGSR_H

@@ -93,6 +93,7 @@ class WatchyGSR{
         virtual void InsertHandleMedInfo() {}
         virtual void InsertHandleWeather() {}
         virtual void InsertHandleBleRemote() {}
+        virtual void InsertAddWeb() {}
         virtual void SaveProgress();
         virtual void NeedsSaving() final;
         virtual void InsertDrawWeather(uint8_t StyleID, bool Status = false);
@@ -108,6 +109,8 @@ class WatchyGSR{
         virtual void ShowGame() final;
         virtual void HideGame() final;
         virtual void UpdateScreen(bool Full = false) final;
+        void stopWatchyAP();
+        bool isWatchyAPOn() const;
         virtual void InsertPostDraw();
         virtual void GameStatus(bool NeedAttention) final;
         virtual bool GameStatusOn() final;
@@ -160,6 +163,7 @@ class WatchyGSR{
         virtual float GetWeatherWindSpeed() final;
         virtual float GetWeatherWindDirection() final;
         virtual float GetWeatherWindGust() final;
+        virtual int GetWeatherElevation() final;
         virtual bool GetWebAvailable() final;
         virtual bool GetWebReady() final;
         virtual int GetWebResponse() final;
@@ -171,7 +175,7 @@ class WatchyGSR{
         virtual void SetTimeFromBLE(time_t utcEpoch, String tzOlson = "") final;
         virtual void SetLocalTimeFromBLE(int year, int month, int day, int hour, int minute, int second) final;
         virtual void SetWeatherLocationFromBLE(double lat, double lon) final;
-        virtual void SetWeatherFromBLE(float tempC, float feelsLikeC, uint16_t id, uint8_t humidity, float windKmh, uint16_t pressure) final;
+        virtual void SetWeatherFromBLE(float tempC, float feelsLikeC, uint16_t id, uint8_t humidity, float windKmh, uint16_t pressure, float elevation = 0) final;
         virtual float getLowBattery(bool useCritical = false) final;
         virtual float getLowBatteryRadio() final;
         virtual String getCurrentNTPServer() final;
@@ -241,6 +245,8 @@ class WatchyGSR{
         uint8_t getButtonMaskToID(uint64_t HW);
     public:
         static uint8_t getSWValue(bool SW1, bool SW2, bool SW3, bool SW4);
+    protected:
+        void ResetOTA();
     private:
         void SetAskWiFi(bool SetWiFi);
         bool HasIPAddress();
@@ -268,7 +274,6 @@ class WatchyGSR{
         void DWordtoUSC(uint32_t DWord, unsigned char &HHigh, unsigned char &HLow, unsigned char &LHigh, unsigned char &LLow);
         void RetrieveSettings();
         void RecordSettings();
-        void ResetOTA();
         void EndOTA(uint8_t Seconds);
         bool IsEndOTA();
         void ResetEndOTA();

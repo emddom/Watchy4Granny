@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Top & Bottom Watch Straps (Outline Stencil for Nothing OS Monochrome) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineJoin="round"
+        android:pathData="M41,15 L67,15 L67,25 L41,25 Z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:pathData="M39,20 L69,20" />
+
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineJoin="round"
+        android:pathData="M41,83 L67,83 L67,93 L41,93 Z" />
+
+    <!-- 4 Protruding Side Tactile Switches (SW2, SW1, SW3, SW4) -->
+    <path android:fillColor="#FFFFFF" android:pathData="M21,34 L25,34 L25,45 L21,45 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M21,63 L25,63 L25,74 L21,74 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M83,34 L87,34 L87,45 L83,45 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M83,63 L87,63 L87,74 L83,74 Z" />
+
+    <!-- Watchy Case Outer Frame -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineJoin="round"
+        android:pathData="M31,25 L77,25 A5,5 0 0,1 82,30 L82,78 A5,5 0 0,1 77,83 L31,83 A5,5 0 0,1 26,78 L26,30 A5,5 0 0,1 31,25 Z" />
+
+    <!-- 4 Corner Bolts -->
+    <path android:fillColor="#FFFFFF" android:pathData="M31,30 m-2.4,0 a2.4,2.4 0 1,0 4.8,0 a2.4,2.4 0 1,0 -4.8,0" />
+    <path android:fillColor="#FFFFFF" android:pathData="M77,30 m-2.4,0 a2.4,2.4 0 1,0 4.8,0 a2.4,2.4 0 1,0 -4.8,0" />
+    <path android:fillColor="#FFFFFF" android:pathData="M31,78 m-2.4,0 a2.4,2.4 0 1,0 4.8,0 a2.4,2.4 0 1,0 -4.8,0" />
+    <path android:fillColor="#FFFFFF" android:pathData="M77,78 m-2.4,0 a2.4,2.4 0 1,0 4.8,0 a2.4,2.4 0 1,0 -4.8,0" />
+
+    <!-- Inner E-Paper Screen Frame -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:pathData="M35,34 L73,34 A2,2 0 0,1 75,36 L75,72 A2,2 0 0,1 73,74 L35,74 A2,2 0 0,1 33,72 L33,36 A2,2 0 0,1 35,34 Z" />
+
+    <!-- Bold "3:20" Digits -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M37.5,42 L44,42 L44,48.5 L38.5,48.5 M44,48.5 L44,55 L37.5,55" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,45 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 M48,52 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M52.5,42 L59.5,42 L59.5,48.5 L52.5,48.5 L52.5,55 L59.5,55" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M63.5,42 L70.5,42 L70.5,55 L63.5,55 Z" />
+
+    <!-- Date / Day Bars -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:pathData="M44,62 L64,62" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:pathData="M39,68 L69,68" />
+</vector>

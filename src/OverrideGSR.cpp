@@ -29,7 +29,12 @@ const uint8_t* getGxDisplayBuffer(const GxDisplayType& d);
 static bool bleInitialized = false;
 static bool bleConnected = false;
 static bool screenReadMode = false;
+static bool bleWeatherPending = false;
+static unsigned long weatherCompleteTime = 0;
+static unsigned long bleKeepAliveUntil = 0;
 static uint32_t screenFrameSeq = 1;
+static uint32_t bleWeatherReqSeq = 0;
+static unsigned long bleStartTime = 0;
 static String bleLastAction = "Ready";
 static NimBLEServer* bleServer = nullptr;
 static NimBLEHIDDevice* bleHid = nullptr;
@@ -84,7 +89,7 @@ static String formatTwinWeather() {
 }
 
 static String formatTwinStatus() {
-    if (!uiSM.watchy) return "0,0.00,0,0,0,0";
+    if (!uiSM.watchy) return "0,0.00,0,0,0,0,0";
     float v = WatchyGSR::getBatteryVoltage();
     int pct = 0;
     if (v >= 4.20f) pct = 100;
@@ -92,10 +97,11 @@ static String formatTwinStatus() {
     else pct = (int)((v - 3.30f) / (4.20f - 3.30f) * 100.0f);
     uint32_t steps = uiSM.watchy->CurrentStepCount();
     int chg = (uiSM.watchy->GetBatteryState() == 3) ? 1 : 0;
-    int mode = showingBleRemote ? 1 : 0;
-    char buf[64];
-    snprintf(buf, sizeof(buf), "%d,%.2f,%lu,%d,%lu,%d",
-             pct, v, (unsigned long)steps, chg, (unsigned long)screenFrameSeq, mode);
+    int mode = showingBleRemote ? 1 : (showingWeather ? 2 : 0);
+    char buf[72];
+    snprintf(buf, sizeof(buf), "%d,%.2f,%lu,%d,%lu,%d,%lu",
+             pct, v, (unsigned long)steps, chg, (unsigned long)screenFrameSeq, mode,
+             (unsigned long)(bleWeatherPending ? bleWeatherReqSeq : 0));
     return String(buf);
 }
 
@@ -107,6 +113,7 @@ static void setCharString(NimBLECharacteristic* pChar, const String& s) {
 
 class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
     void onRead(NimBLECharacteristic* pChar) {
+        if (uiSM.watchy) uiSM.watchy->refreshBleActivity();
         std::string uuid = pChar->getUUID().toString();
         if (uuid == TWIN_CHAR_TIME_UUID) {
             if (!screenReadMode) {
@@ -123,6 +130,7 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
 
     void onWrite(NimBLECharacteristic* pChar) {
         if (!uiSM.watchy) return;
+        uiSM.watchy->refreshBleActivity();
         std::string uuid = pChar->getUUID().toString();
         std::string raw = std::string(pChar->getValue());
         String val = String(raw.c_str());
@@ -202,10 +210,16 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
         } else if (uuid == TWIN_CHAR_WEAT_UUID) {
             float tempC = 0, feelsC = 0, windMs = 0;
             unsigned int cond = 0, hum = 0, pres = 1013;
-            if (sscanf(val.c_str(), "%f,%f,%u,%u,%f,%u", &tempC, &feelsC, &cond, &hum, &windMs, &pres) >= 5) {
-                uiSM.watchy->SetWeatherFromBLE(tempC, feelsC, (uint16_t)cond, (uint8_t)hum, windMs * 3.6f, (uint16_t)pres);
+            float elev = 0;
+            if (sscanf(val.c_str(), "%f,%f,%u,%u,%f,%u,%f", &tempC, &feelsC, &cond, &hum, &windMs, &pres, &elev) >= 5) {
+                bleWeatherPending = false;
+                uiSM.watchy->SetWeatherFromBLE(tempC, feelsC, (uint16_t)cond, (uint8_t)hum, windMs * 3.6f, (uint16_t)pres, elev);
                 setCharString(pChar, formatTwinWeather());
+                if (bleTwinStatusChar) {
+                    setCharString(bleTwinStatusChar, formatTwinStatus());
+                }
                 bleLastAction = "Weather Sync";
+                uiSM.watchy->notifyWeatherComplete();
                 uiSM.watchy->UpdateScreen();
             }
         }
@@ -237,7 +251,8 @@ class WatchyBleServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer* pServer) {
         bleConnected = true;
         bleLastAction = "Connected";
-        if ((showingBleRemote || bleMirrorMode) && pServer->getConnectedCount() < 3) {
+        if (uiSM.watchy) uiSM.watchy->refreshBleActivity();
+        if ((showingBleRemote || bleMirrorMode || showingWeather) && pServer->getConnectedCount() < 3) {
             NimBLEDevice::startAdvertising();
         }
         if (uiSM.watchy) uiSM.watchy->UpdateScreen();
@@ -245,10 +260,13 @@ class WatchyBleServerCallbacks : public NimBLEServerCallbacks {
     void onDisconnect(NimBLEServer* pServer) {
         bleConnected = (pServer->getConnectedCount() > 0);
         bleLastAction = bleConnected ? "Connected" : "Disconnected";
-        if (!bleConnected && bleMirrorMode) {
-            bleMirrorMode = false;
+        if (!bleConnected) {
+            if (bleMirrorMode) bleMirrorMode = false;
+            bleKeepAliveUntil = 0;
+            screenReadMode = false;
+            if (uiSM.watchy) uiSM.watchy->refreshBleActivity();
         }
-        if (showingBleRemote) {
+        if (showingBleRemote || showingWeather) {
             NimBLEDevice::startAdvertising();
         }
         if (uiSM.watchy) uiSM.watchy->UpdateScreen();
@@ -261,6 +279,7 @@ void OverrideGSR::InsertDefaults() {
 
 void OverrideGSR::InsertInitWatchStyle(uint8_t StyleID) {
     WantWeather(true);
+    Design.Status.BATTy = 193;
 }
 
 void OverrideGSR::InsertWiFi() {
@@ -304,7 +323,7 @@ void OverrideGSR::InsertOnMinute() {
   }
 
   // Clear the messages when the minute changes so the normal clock returns
-  if (helpRequested || wifiFailed || showingMedInfo || showingButtons || (showingWeather && !IsWeatherLoading())) {
+  if (helpRequested || wifiFailed || showingMedInfo || showingButtons || (showingWeather && !IsWeatherLoading() && !bleWeatherPending)) {
      helpRequested = false;
      wifiFailed = false;
      showingMedInfo = false;
@@ -319,11 +338,18 @@ void OverrideGSR::InsertOnMinute() {
 
 bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
     if (showingButtons) return true;
-    if (showingBleRemote || bleMirrorMode) {
+    if (showingBleRemote || bleMirrorMode || showingWeather) {
         KeepDisplayAwake();
         return true;
     }
-    if (showingWeather && IsWeatherLoading()) return true;
+    if (screenReadMode) {
+        KeepDisplayAwake();
+        return true;
+    }
+    if (bleConnected && millis() < bleKeepAliveUntil) {
+        KeepDisplayAwake();
+        return true;
+    }
     if (isSuspended && GetBatteryState() == 3) {
         return true; // Keep awake when charging to animate blinking character
     }
@@ -457,7 +483,7 @@ void OverrideGSR::drawWatchFace() {
         display.setFont(&aAntiCorona15pt7b);
         display.setTextColor(ForeColor());
 
-        String title = IsWeatherLoading() ? "WEATHER *" : "WEATHER";
+        String title = (IsWeatherLoading() || bleWeatherPending) ? "WEATHER *" : "WEATHER";
         int16_t x1, y1;
         uint16_t w, h;
         display.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
@@ -466,17 +492,20 @@ void OverrideGSR::drawWatchFace() {
 
         if (!IsWeatherReady()) {
             display.setFont(&aAntiCorona12pt7b);
-            if (IsWeatherLoading()) {
-                display.setCursor(20, 95);
-                display.print("FETCHING...");
-                display.setCursor(15, 130);
-                display.print("PLEASE WAIT");
+            if (IsWeatherLoading() || bleWeatherPending) {
+                display.setCursor(15, 85);
+                display.print(bleConnected ? "SYNCING BLE..." : "BLE WAITING...");
+                display.setFont(&aAntiCorona10pt7b);
+                display.setCursor(10, 120);
+                display.print(bleConnected ? "Fetching on Twin" : "Open Digital Twin");
+                display.setCursor(10, 148);
+                display.print("or Press UP (SW3)");
             } else {
                 display.setCursor(20, 85);
                 display.print("NO DATA YET");
                 display.setFont(&aAntiCorona10pt7b);
                 display.setCursor(15, 120);
-                display.print("Check WiFi or");
+                display.print("Open Twin App or");
                 display.setCursor(15, 148);
                 display.print("Press UP (SW3)");
             }
@@ -489,8 +518,13 @@ void OverrideGSR::drawWatchFace() {
 
             display.setFont(&aAntiCorona16pt7b);
             String tempStr = String(GetWeatherTemperature()) + (IsMetric() ? " C" : " F");
-            display.setCursor(64, 60);
+            display.setCursor(60, 60);
             display.print(tempStr);
+
+            display.setFont(&aAntiCorona10pt7b);
+            display.setCursor(display.getCursorX() + 4, 60);
+            String feelsStr = "(" + String(GetWeatherTemperatureFeelsLike()) + (IsMetric() ? " C)" : " F)");
+            display.print(feelsStr);
 
             auto getConditionLabel = [](uint16_t id) -> String {
                 if (id == 0 || id == 800) return "Clear";
@@ -509,7 +543,7 @@ void OverrideGSR::drawWatchFace() {
             display.print("Sky: " + getConditionLabel(cond));
 
             display.setCursor(5, 115);
-            display.print("Feels Like: " + String(GetWeatherTemperatureFeelsLike()) + (IsMetric() ? " C" : " F"));
+            display.print("Elevation: " + String(GetWeatherElevation()) + (IsMetric() ? " m" : " ft"));
 
             display.setCursor(5, 140);
             display.print("Humidity: " + String(GetWeatherHumidity()) + "%");
@@ -552,10 +586,16 @@ void OverrideGSR::drawWatchFace() {
         display.setCursor(5, 130);
         display.print("Act: " + bleLastAction);
 
+        // Top-Left (SW2) & Top-Right (SW3)
         display.setCursor(5, 162);
-        display.print("SW3: Vol+  SW4: Vol-");
+        display.print("SW2: Exit");
+        display.setCursor(105, 162);
+        display.print("SW3: Vol+");
+        // Bottom-Left (SW1) & Bottom-Right (SW4)
         display.setCursor(5, 188);
-        display.print("SW1: Play  SW2: Exit");
+        display.print("SW1: Play");
+        display.setCursor(105, 188);
+        display.print("SW4: Vol-");
     } else if (callingForHelp) {
         display.fillScreen(BackColor());
         display.setFont(&aAntiCorona16pt7b);
@@ -580,6 +620,36 @@ void OverrideGSR::drawWatchFace() {
         display.print("WIFI FAILED!");
         display.setCursor(10, 130);
         display.print("(Check settings)");
+    } else if (NoMenu()) {
+        // Top-level Watch Face: draw BLE connection indicator in lower-left corner (x=5, y=180, w=26, h=15)
+        if (bleConnected) {
+            // Connected: Solid filled pill with Bluetooth rune + checkmark
+            display.fillRoundRect(5, 180, 26, 15, 3, ForeColor());
+            uint16_t fg = BackColor();
+            display.drawLine(12, 182, 12, 192, fg);
+            display.drawLine(12, 182, 16, 185, fg);
+            display.drawLine(16, 185, 9, 190, fg);
+            display.drawLine(12, 192, 16, 189, fg);
+            display.drawLine(16, 189, 9, 184, fg);
+            // Checkmark
+            display.drawLine(19, 188, 22, 191, fg);
+            display.drawLine(22, 191, 27, 184, fg);
+            display.drawLine(19, 187, 22, 190, fg);
+            display.drawLine(22, 190, 27, 183, fg);
+        } else {
+            // Disconnected: Outlined pill with Bluetooth rune + 'x'
+            display.fillRoundRect(5, 180, 26, 15, 3, BackColor());
+            display.drawRoundRect(5, 180, 26, 15, 3, ForeColor());
+            uint16_t fg = ForeColor();
+            display.drawLine(12, 182, 12, 192, fg);
+            display.drawLine(12, 182, 16, 185, fg);
+            display.drawLine(16, 185, 9, 190, fg);
+            display.drawLine(12, 192, 16, 189, fg);
+            display.drawLine(16, 189, 9, 184, fg);
+            // Small 'x'
+            display.drawLine(20, 184, 26, 190, fg);
+            display.drawLine(26, 184, 20, 190, fg);
+        }
     }
 }
 
@@ -601,6 +671,7 @@ bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &
       if (SwitchNumber == 2) { // Back / SW2
           showingMedInfo = false;
           showingWeather = false;
+          bleWeatherPending = false;
           if (callingForHelp) {
               endWiFi();
           }
@@ -611,8 +682,8 @@ bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &
           Refresh = true;
           return true; // We handled the button press
       }
-      if (showingWeather && SwitchNumber == 3) { // Up / SW3 -> Refresh weather
-          StartWeather();
+      if (showingWeather && SwitchNumber == 3) { // Up / SW3 -> Refresh weather via BLE Twin
+          requestBleWeather();
           Haptic = true;
           Refresh = true;
           return true;
@@ -645,6 +716,7 @@ void OverrideGSR::InsertHandleBleRemote() {
 void OverrideGSR::startBleHid() {
     endWiFi();
     bleLastAction = "Ready";
+    bleStartTime = millis();
     if (!bleInitialized) {
         NimBLEDevice::init("Watchy4Granny");
         NimBLEDevice::setMTU(517);
@@ -711,7 +783,11 @@ void OverrideGSR::startBleHid() {
 
 void OverrideGSR::stopBleHid() {
     bleMirrorMode = false;
+    bleWeatherPending = false;
     screenReadMode = false;
+    bleStartTime = 0;
+    bleKeepAliveUntil = 0;
+    weatherCompleteTime = 0;
     if (bleInitialized) {
         NimBLEDevice::stopAdvertising();
         if (bleServer && bleServer->getConnectedCount() > 0) {
@@ -724,7 +800,48 @@ void OverrideGSR::stopBleHid() {
     }
 }
 
+bool OverrideGSR::isBleRunning() {
+    return bleStartTime > 0 && (showingBleRemote || bleMirrorMode || showingWeather || bleConnected);
+}
+
+bool OverrideGSR::isBleConnected() const {
+    return bleConnected;
+}
+
+void OverrideGSR::refreshBleActivity() {
+    bleStartTime = millis();
+}
+
+void OverrideGSR::tickBleTimeout() {
+    if (bleStartTime == 0) return;
+
+    if (bleConnected) {
+        // When connected, disconnect only after 120 seconds of complete idle
+        if (millis() - bleStartTime >= 120000) {
+            stopBleHid();
+            UpdateScreen();
+        }
+    } else {
+        // Not connected (advertising): timeout after 30 seconds of no connection
+        if (millis() - bleStartTime >= 30000) {
+            stopBleHid();
+            UpdateScreen();
+        }
+    }
+}
+
+void OverrideGSR::requestBleWeather() {
+    refreshBleActivity();
+    bleWeatherPending = true;
+    bleWeatherReqSeq++;
+    startBleHid();
+    if (bleTwinStatusChar) {
+        setCharString(bleTwinStatusChar, formatTwinStatus());
+    }
+}
+
 void OverrideGSR::sendBleMediaKey(uint8_t mask, const char* label) {
+    refreshBleActivity();
     if (!bleConnected || bleInputMedia == nullptr) {
         bleLastAction = "Not Connected";
         UpdateScreen();
@@ -741,5 +858,220 @@ void OverrideGSR::sendBleMediaKey(uint8_t mask, const char* label) {
     bleLastAction = String(label);
     UpdateScreen();
 }
+
+static unsigned long lastWifiActivityTime = 0;
+
+void OverrideGSR::recordWifiActivity() {
+    lastWifiActivityTime = millis();
+}
+
+unsigned long OverrideGSR::getWifiIdleSeconds() const {
+    if (lastWifiActivityTime == 0) return 0;
+    return (millis() - lastWifiActivityTime) / 1000;
+}
+
+bool OverrideGSR::isBleWeatherPending() const {
+    return bleWeatherPending;
+}
+
+void OverrideGSR::notifyWeatherComplete() {
+    weatherCompleteTime = millis();
+}
+
+unsigned long OverrideGSR::getWeatherCompleteTime() const {
+    return weatherCompleteTime;
+}
+
+void OverrideGSR::clearWeatherCompleteTime() {
+    weatherCompleteTime = 0;
+}
+
+void OverrideGSR::extendBleKeepAlive(unsigned long ms) {
+    unsigned long target = millis() + ms;
+    if (target > bleKeepAliveUntil) {
+        bleKeepAliveUntil = target;
+    }
+}
+
+extern WebServer server;
+
+void OverrideGSR::InsertAddWeb() {
+    recordWifiActivity();
+
+    // 1. GET /api/status - JSON Telemetry (battery, voltage, charging, steps, time, mode)
+    server.on("/api/status", HTTP_GET, [this]() {
+        recordWifiActivity();
+        server.sendHeader("Access-Control-Allow-Origin", "*");
+        server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        server.sendHeader("Access-Control-Allow-Headers", "*");
+        server.sendHeader("Connection", "close");
+        ResetOTA();
+
+        float voltage = getBatteryVoltage();
+        int percentage = 0;
+        if (voltage >= 4.20) percentage = 100;
+        else if (voltage <= 3.30) percentage = 0;
+        else percentage = (int)((voltage - 3.30) / (4.20 - 3.30) * 100.0);
+
+        uint8_t currentMode = 0;
+        if (showingBleRemote) currentMode = 1;
+        else if (showingWeather) currentMode = 2;
+
+        char buf[256];
+        snprintf(buf, sizeof(buf),
+            "{\"battery\":%d,\"voltage\":%.2f,\"charging\":%s,\"steps\":%lu,\"time\":\"%s\",\"frameSeq\":%lu,\"mode\":%u,\"weatherReqSeq\":%lu}",
+            percentage,
+            voltage,
+            GetBatteryState() == 3 ? "true" : "false",
+            (unsigned long)CurrentStepCount(),
+            formatTwinTime().c_str(),
+            (unsigned long)screenFrameSeq,
+            currentMode,
+            (unsigned long)bleWeatherReqSeq
+        );
+        server.send(200, "application/json", buf);
+    });
+
+    // 2. GET /api/screen - Raw 5000-byte 200x200 1bpp framebuffer
+    server.on("/api/screen", HTTP_GET, [this]() {
+        recordWifiActivity();
+        server.sendHeader("Access-Control-Allow-Origin", "*");
+        server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        server.sendHeader("Access-Control-Allow-Headers", "*");
+        server.sendHeader("Connection", "close");
+        ResetOTA();
+
+        const uint8_t* fb = getGxDisplayBuffer(display);
+        server.send_P(200, "application/octet-stream", (const char*)fb, 5000);
+    });
+
+    // 3. POST /api/button?btn=1..4 (or body btn=X) - Virtual SW1-SW4 Button Press
+    server.on("/api/button", HTTP_ANY, [this]() {
+        recordWifiActivity();
+        server.sendHeader("Access-Control-Allow-Origin", "*");
+        server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        server.sendHeader("Access-Control-Allow-Headers", "*");
+        if (server.method() == HTTP_OPTIONS) {
+            server.send(204);
+            return;
+        }
+        server.sendHeader("Connection", "close");
+        ResetOTA();
+
+        int btn = 0;
+        if (server.hasArg("btn")) {
+            btn = server.arg("btn").toInt();
+        } else if (server.hasArg("plain")) {
+            String p = server.arg("plain");
+            int idx = p.indexOf("btn=");
+            if (idx >= 0) btn = p.substring(idx + 4).toInt();
+            else btn = p.toInt();
+        }
+
+        if (btn >= 1 && btn <= 4) {
+            Button = (uint8_t)btn;
+            UpdateScreen(true);
+            server.send(200, "application/json", "{\"ok\":true,\"button\":" + String(btn) + "}");
+        } else {
+            server.send(400, "application/json", "{\"ok\":false,\"error\":\"Invalid btn (1-4)\"}");
+        }
+    });
+
+    // 4. POST /api/weather - Push weather payload: temp,feels,code,hum,wind,pres
+    server.on("/api/weather", HTTP_ANY, [this]() {
+        recordWifiActivity();
+        server.sendHeader("Access-Control-Allow-Origin", "*");
+        server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        server.sendHeader("Access-Control-Allow-Headers", "*");
+        if (server.method() == HTTP_OPTIONS) {
+            server.send(204);
+            return;
+        }
+        server.sendHeader("Connection", "close");
+        ResetOTA();
+
+        String body = server.arg("plain");
+        if (body.length() == 0 && server.hasArg("data")) {
+            body = server.arg("data");
+        }
+
+        float tempC = 0, feelsC = 0, windMs = 0;
+        unsigned int cond = 0, hum = 0, pres = 1013;
+        float elev = 0;
+        if (sscanf(body.c_str(), "%f,%f,%u,%u,%f,%u,%f", &tempC, &feelsC, &cond, &hum, &windMs, &pres, &elev) >= 5) {
+            bleWeatherPending = false;
+            SetWeatherFromBLE(tempC, feelsC, (uint16_t)cond, (uint8_t)hum, windMs * 3.6f, (uint16_t)pres, elev);
+            notifyWeatherComplete();
+            UpdateScreen(true);
+            server.send(200, "application/json", "{\"ok\":true}");
+        } else {
+            server.send(400, "application/json", "{\"ok\":false,\"error\":\"Invalid format. Expected: temp,feels,code,hum,wind,pres\"}");
+        }
+    });
+
+    // 5. POST /api/time - Sync phone time: epoch[,timezone]
+    server.on("/api/time", HTTP_ANY, [this]() {
+        recordWifiActivity();
+        server.sendHeader("Access-Control-Allow-Origin", "*");
+        server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        server.sendHeader("Access-Control-Allow-Headers", "*");
+        if (server.method() == HTTP_OPTIONS) {
+            server.send(204);
+            return;
+        }
+        server.sendHeader("Connection", "close");
+        ResetOTA();
+
+        String body = server.arg("plain");
+        if (body.length() == 0 && server.hasArg("data")) {
+            body = server.arg("data");
+        }
+
+        long epoch = 0;
+        char tzBuf[48] = {0};
+        if (sscanf(body.c_str(), "%ld,%47s", &epoch, tzBuf) >= 1 && epoch > 1700000000) {
+            SetTimeFromBLE((time_t)epoch, String(tzBuf));
+            UpdateScreen(true);
+            server.send(200, "application/json", "{\"ok\":true}");
+        } else {
+            server.send(400, "application/json", "{\"ok\":false,\"error\":\"Invalid time format\"}");
+        }
+    });
+
+    // 6. POST/GET /api/exit - Exit WiFi AP mode immediately
+    server.on("/api/exit", HTTP_ANY, [this]() {
+        server.sendHeader("Access-Control-Allow-Origin", "*");
+        server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        server.sendHeader("Access-Control-Allow-Headers", "*");
+        if (server.method() == HTTP_OPTIONS) {
+            server.send(204);
+            return;
+        }
+        server.sendHeader("Connection", "close");
+        server.send(200, "application/json", "{\"ok\":true,\"message\":\"WiFi AP stopping\"}");
+        server.client().flush();
+        stopWatchyAP();
+        CloseMenu();
+        UpdateScreen(true);
+    });
+
+    // 7. GET /exit - Compatibility exit endpoint
+    server.on("/exit", HTTP_ANY, [this]() {
+        server.sendHeader("Access-Control-Allow-Origin", "*");
+        server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        server.sendHeader("Access-Control-Allow-Headers", "*");
+        if (server.method() == HTTP_OPTIONS) {
+            server.send(204);
+            return;
+        }
+        server.sendHeader("Connection", "close");
+        server.send(200, "text/plain", "OK");
+        server.client().flush();
+        stopWatchyAP();
+        CloseMenu();
+        UpdateScreen(true);
+    });
+}
+
 
 

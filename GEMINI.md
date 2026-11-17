@@ -8,17 +8,20 @@ Key custom features include:
 - **Medical Info Screen (`MedInfoState`)**: Displays emergency identification, allergies, and birth date on the e-paper screen.
 - **Find My Phone (`FindFoneState`)**: Connects to WiFi and triggers an IFTTT webhook (`find_phone`) to ring the user's phone.
 - **Show Buttons Overlay (`ShowButtonsState`)**: Displays a 10-second on-screen legend mapping physical buttons (`SW1`–`SW4`) to their active logical actions.
+- **Weather Screen (`WeatherState`)**: Dedicated Open-Meteo weather report displaying temperature with inline feels-like `tempC (feelsC)`, ground elevation (`Elevation: X m`), condition, humidity, wind speed, and pressure; refreshes via BLE Digital Twin on-demand (`SW3` shortcut from watch face).
+- **BLE Remote & Digital Twin (`BleRemoteState`)**: Exposes BLE HID Media Control (`Vol+`, `Vol-`, `Play/Pause`) and custom GATT service (`19b10000-e8f2-537e-4f6c-d104768a1214`) for time/timezone synchronization, weather location/data push, and telemetry to the Native Android Twin app (`android_digital_twin`) and Web Bluetooth (`digital_twin.html`) (`SW4` shortcut from watch face).
+- **Aligned Watch Face Status Indicators**: Lower-left corner features Bluetooth status (`[ᛒ ✓]` connected, `[ᛒ ×]` disconnected) aligned along baseline `y = 195` with the lower-right battery and charging status indicator.
 - **Low-Battery Suspend (`SuspendState`)**: Locks the watch into a low-power suspended screen when battery drops to/below the configured suspend threshold, with charging status and wake prompt (`SW3`) when plugged in.
-- **Native Utilities Menu (`GSR_MENU_UTILS`)**: Integrates `Show Buttons`, `Find Phone`, and `Med Info` directly into the root Watchy_GSR menu (`Menu -> Utilities`).
+- **Native Utilities Menu (`GSR_MENU_UTILS`)**: Integrates `Show Buttons`, `Find Phone`, `Med Info`, `Weather`, `BLE Remote`, and `Watchy Connect` directly into the root Watchy_GSR menu (`Menu -> Utilities`).
 
 ## Source Layout & Vendored Code Rules
 
 - **Entry Point & Custom Layer (Edit Here)**:
   - `src/GSR.cpp` — Arduino `setup()` and `loop()` driving `PowerStateMachine` and `UiStateMachine`.
-  - `src/OverrideGSR.{h,cpp}` — Subclasses `WatchyGSR` (`OverrideGSR`), holds `RTC_DATA_ATTR` state flags, custom screen rendering in `drawWatchFace()`, IFTTT webhook in `InsertWiFi()`, and menu hook callbacks (`InsertHandleShowButtons()`, `InsertHandleFindPhone()`, `InsertHandleMedInfo()`).
+  - `src/OverrideGSR.{h,cpp}` — Subclasses `WatchyGSR` (`OverrideGSR`), holds `RTC_DATA_ATTR` state flags, custom screen rendering in `drawWatchFace()`, IFTTT webhook in `InsertWiFi()`, and menu hook callbacks (`InsertHandleShowButtons()`, `InsertHandleFindPhone()`, `InsertHandleMedInfo()`, `InsertHandleWeather()`, `InsertHandleBleRemote()`).
   - `src/StateMachine.h` — Generic `State` and `StateMachine` base classes (`enter`, `execute`, `exit`, `handleButton`).
   - `src/PowerStateMachine.{h,cpp}` — Manages `AwakeState` (`watchy->tick()`) and `SleepState` (`watchy->deepSleep()`) based on `ActiveMode`.
-  - `src/UiStateMachine.{h,cpp}` — Manages `WatchfaceState`, `MenuState`, `MedInfoState`, `FindFoneState`, `SuspendState`, and `ShowButtonsState`.
+  - `src/UiStateMachine.{h,cpp}` — Manages `WatchfaceState`, `MenuState`, `MedInfoState`, `FindFoneState`, `SuspendState`, `ShowButtonsState`, `WeatherState`, and `BleRemoteState`.
 - **Vendored Framework (Treat as Third-Party)**:
   - `src/Watchy_GSR.{h,cpp}`, `src/Defines_GSR.h`, `src/Fonts_GSR.h`, `src/Icons_GSR.h`, `src/Locale_GSR.h`, `src/Web-HTML.h`, `src/ArduinoNvs.{h,cpp}`, `src/WeatherIcons.{h,cpp}`.
   - Avoid modifying vendored files unless exposing a required hook for `OverrideGSR`. Existing targeted patches to `Defines_GSR.h` and `Watchy_GSR.cpp` (for `GSR_MENU_UTILS` and WiFi build-reset preservation) are documented in `patch_defines.py` and `patch_watchy_gsr.py`.

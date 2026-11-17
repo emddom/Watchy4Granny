@@ -9,6 +9,11 @@ flowchart LR
     WF["Watch Face (WatchfaceState)"] -->|"SW1 (Menu)"| ROOT["Root Menu (GSR_MENU_INNORMAL)"]
     ROOT -->|"SW2 (Back)"| WF
 
+    %% Direct Shortcuts from Watch Face
+    WF -->|"SW3 (Direct Up)"| ST_WEAT["WeatherState (Open-Meteo Report)"]
+    WF -->|"SW4 (Direct Down)"| ST_BLE["BleRemoteState (HID + Digital Twin)"]
+    WF -->|"SW2 (if AP active)"| AP_OFF["Stop WiFi AP"]
+
     %% Root Menu Items (0..5)
     ROOT -->|"0"| M_STEPS["0: Steps (GSR_MENU_STEPS)"]
     ROOT -->|"1"| M_ALARMS["1: Alarms (GSR_MENU_ALARMS)"]
@@ -20,20 +25,22 @@ flowchart LR
     %% Steps Sub-actions
     M_STEPS -->|"SW1 (Edit)"| S_EDIT["Tomorrow Reset Time / Reset Today"]
 
-    %% Utilities Submenu (GSR_MENU_INUTILS: 40..44)
+    %% Utilities Submenu (GSR_MENU_INUTILS: 40..45)
     subgraph SUB_UTILS["Utilities Submenu (GSR_MENU_INUTILS)"]
         U_BTN["40: Show Buttons (GSR_MENU_UTILS_BTN)"]
         U_FIND["41: Find Phone (GSR_MENU_UTILS_FIND)"]
         U_MED["42: Med Info (GSR_MENU_UTILS_MED)"]
         U_WEAT["43: Weather (GSR_MENU_UTILS_WEAT)"]
         U_BLE["44: BLE Remote (GSR_MENU_UTILS_BLE)"]
+        U_WIFI["45: Watchy Connect (GSR_MENU_UTILS_WIFI)"]
     end
     M_UTILS -->|"SW1 (Enter)"| SUB_UTILS
     U_BTN -->|"SW1 -> InsertHandleShowButtons()"| ST_BTN["ShowButtonsState (10s Overlay)"]
     U_FIND -->|"SW1 -> InsertHandleFindPhone()"| ST_FIND["FindFoneState (WiFi + IFTTT Webhook)"]
     U_MED -->|"SW1 -> InsertHandleMedInfo()"| ST_MED["MedInfoState (Emergency Medical Info)"]
-    U_WEAT -->|"SW1 -> InsertHandleWeather()"| ST_WEAT["WeatherState (Open-Meteo Weather Report)"]
-    U_BLE -->|"SW1 -> InsertHandleBleRemote()"| ST_BLE["BleRemoteState (BLE HID + Digital Twin GATT)"]
+    U_WEAT -->|"SW1 -> InsertHandleWeather()"| ST_WEAT
+    U_BLE -->|"SW1 -> InsertHandleBleRemote()"| ST_BLE
+    U_WIFI -->|"SW1 -> Starts SoftAP"| AP_MODE["SoftAP 192.168.4.1 (Web Portal)"]
 
     %% Alarms Submenu (GSR_MENU_INALARMS: 6..10)
     subgraph SUB_ALARMS["Alarms Submenu (GSR_MENU_INALARMS)"]
@@ -107,7 +114,7 @@ stateDiagram-v2
             OptionsSubmenu --> TroubleSubmenu : SW1 on 27: Troubleshoot (35..39)
             TroubleSubmenu --> OptionsSubmenu : SW2 (Back)
 
-            RootMenu --> UtilitiesSubmenu : SW1 on 5: Utilities (40..44)
+            RootMenu --> UtilitiesSubmenu : SW1 on 5: Utilities (40..45)
             UtilitiesSubmenu --> RootMenu : SW2 (Back)
         }
 
@@ -118,13 +125,13 @@ stateDiagram-v2
         MenuState --> WeatherState : Utilities -> 43: Weather (SW1)
         MenuState --> BleRemoteState : Utilities -> 44: BLE Remote (SW1)
 
-        ShowButtonsState --> WatchfaceState : Any Button (>1s debounce) / 10s Timeout / New Minute
-        MedInfoState --> WatchfaceState : SW2 (Back) / New Minute
-        WeatherState --> WatchfaceState : SW2 (Back) / New Minute (when idle)
-        WeatherState --> WeatherState : SW3 (Up - Manual Weather Refresh)
-        BleRemoteState --> WatchfaceState : SW2 (Back - Stops BLE Advertising)
+        ShowButtonsState --> WatchfaceState : Any Button (>1s debounce) / 10s Timeout
+        MedInfoState --> WatchfaceState : SW2 (Back) / 20s Inactivity Timeout
+        WeatherState --> WatchfaceState : SW2 (Back) / 5s Post-Sync Hold / 20s Timeout
+        WeatherState --> WeatherState : SW3 (Up - Request BLE Weather from Twin)
+        BleRemoteState --> WatchfaceState : SW2 (Back) / 20s Inactivity Timeout
         BleRemoteState --> BleRemoteState : SW3 (Vol+) / SW4 (Vol-) / SW1 (Play-Pause)
-        FindFoneState --> WatchfaceState : SW2 (Back) / Webhook Done + New Minute
+        FindFoneState --> WatchfaceState : SW2 (Back) / 20s Inactivity Timeout / Webhook Done
         SuspendState --> WatchfaceState : SW3 (Up) while Charging (GetBatteryState() == 3)
     }
 
@@ -136,11 +143,18 @@ stateDiagram-v2
 * **AwakeState**: Powers on the display, reads sensors, runs `watchy->tick()`, and processes UI inputs. Automatically transitions to sleep when `ActiveMode` goes false.
 
 ### UiStateMachine Summary
-* **WatchfaceState**: Default idle mode showing the time, battery icon, and step count.
+* **WatchfaceState**: Default idle mode showing the time, date, step count, lower-left Bluetooth badge (`[ᛒ ✓]` / `[ᛒ ×]`), and lower-right battery/charging indicator (horizontally aligned at baseline `y = 195`).
 * **MenuState**: Native `WatchyGSR` menu system (`Steps`, `Alarms`, `Timers`, `Game`, `Options`, and custom `Utilities` at the root level).
 * **ShowButtonsState**: Triggered via `Menu -> Utilities -> Show Buttons`. Displays an overlay mapping `SW1`–`SW4` physical buttons to their logical functions. Ignores button inputs for the first 1 second to prevent bouncing from menu selection, then dismisses on any button press or a 10s timeout.
-* **MedInfoState**: Triggered via `Menu -> Utilities -> Med Info`. Displays emergency medical info.
-* **WeatherState**: Triggered via `Menu -> Utilities -> Weather`. Displays a full-screen weather report (icon, temperature, sky condition, feels-like, humidity, wind, and pressure) fetched from Open-Meteo, automatically requesting an update if stale and allowing manual refresh via `SW3`.
-* **BleRemoteState**: Triggered via `Menu -> Utilities -> BLE Remote`. Starts a `NimBLE` server (`Watchy4Granny`) exposing both a **BLE HID Consumer Control** service (`Volume Up` on `SW3`, `Volume Down` on `SW4`, `Play/Pause` on `SW1`) and a **BLE Digital Twin GATT** service (`19b10000-e8f2-537e-4f6c-d104768a1214`) for syncing phone time/timezone, weather coordinates, weather data, and device status; exits and stops BLE on `SW2`.
-* **FindFoneState**: Triggered via `Menu -> Utilities -> Find Phone`. Connects to WiFi and pings the user's phone via IFTTT.
+* **MedInfoState**: Triggered via `Menu -> Utilities -> Med Info`. Displays emergency medical info (Name, ID, Allergies, Birthdate). Exits on `SW2` or 20s inactivity timeout.
+* **WeatherState**: Triggered via `SW3` direct shortcut or `Menu -> Utilities -> Weather`. Displays the full-screen weather report:
+  * Current temperature + feels-like in small font: e.g. `3°C (-2°C)`.
+  * Local ground elevation: e.g. `Elevation: 113 m`.
+  * Sky condition, humidity, wind speed (m/s), and barometric pressure.
+  * Initiates BLE weather sync with the Digital Twin; manual refresh with `SW3`; exits on `SW2` or 20s timeout.
+* **BleRemoteState**: Triggered via `SW4` direct shortcut or `Menu -> Utilities -> BLE Remote`. Starts `NimBLE` server (`Watchy4Granny`) exposing both:
+  1. **BLE HID Consumer Control**: `Volume Up` (`SW3`), `Volume Down` (`SW4`), `Play/Pause` (`SW1`).
+  2. **BLE Digital Twin GATT Service (`19b10000-e8f2-537e-4f6c-d104768a1214`)**: For time/timezone synchronization, weather coordinate configuration, weather payload ingestion, and battery/screen status.
+  3. Exits on `SW2` or 20s timeout, shutting off BLE advertising immediately or entering deep sleep.
+* **FindFoneState**: Triggered via `Menu -> Utilities -> Find Phone`. Connects to WiFi and triggers an IFTTT webhook to ring the phone.
 * **SuspendState**: A low-power lock screen triggered when the battery drops to/below the configured suspend threshold (`Options -> Suspend Level`). Can be awakened via `SW3` while charging.

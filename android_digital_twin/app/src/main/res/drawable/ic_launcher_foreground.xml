@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Top & Bottom Black Watch Straps -->
+    <path
+        android:fillColor="#1E293B"
+        android:strokeColor="#090D16"
+        android:strokeWidth="1.5"
+        android:pathData="M40,14 L68,14 L68,28 L40,28 Z" />
+    <!-- Strap keeper loop -->
+    <path
+        android:fillColor="#0F172A"
+        android:strokeColor="#334155"
+        android:strokeWidth="1"
+        android:pathData="M39,18 L69,18 L69,22 L39,22 Z" />
+
+    <path
+        android:fillColor="#1E293B"
+        android:strokeColor="#090D16"
+        android:strokeWidth="1.5"
+        android:pathData="M40,80 L68,80 L68,94 L40,94 Z" />
+    <!-- Strap holes -->
+    <path
+        android:fillColor="#090D16"
+        android:pathData="M52,84 h4 v2 h-4 z M52,88 h4 v2 h-4 z" />
+
+    <!-- 4 Protruding Silver Tactile Buttons (SW2, SW1, SW3, SW4) -->
+    <!-- SW2 (Top-Left) -->
+    <path
+        android:fillColor="#CBD5E1"
+        android:strokeColor="#334155"
+        android:strokeWidth="1.2"
+        android:pathData="M22,35 L27,35 L27,45 L22,45 Z" />
+    <!-- SW1 (Bottom-Left) -->
+    <path
+        android:fillColor="#CBD5E1"
+        android:strokeColor="#334155"
+        android:strokeWidth="1.2"
+        android:pathData="M22,63 L27,63 L27,73 L22,73 Z" />
+    <!-- SW3 (Top-Right) -->
+    <path
+        android:fillColor="#CBD5E1"
+        android:strokeColor="#334155"
+        android:strokeWidth="1.2"
+        android:pathData="M81,35 L86,35 L86,45 L81,45 Z" />
+    <!-- SW4 (Bottom-Right) -->
+    <path
+        android:fillColor="#CBD5E1"
+        android:strokeColor="#334155"
+        android:strokeWidth="1.2"
+        android:pathData="M81,63 L86,63 L86,73 L81,73 Z" />
+
+    <!-- Bronze / Metallic Watchy Case Body -->
+    <path
+        android:fillColor="#785543"
+        android:strokeColor="#3E2A20"
+        android:strokeWidth="2"
+        android:pathData="M31,25 L77,25 A5,5 0 0,1 82,30 L82,78 A5,5 0 0,1 77,83 L31,83 A5,5 0 0,1 26,78 L26,30 A5,5 0 0,1 31,25 Z" />
+
+    <!-- 4 Corner Hex Bolts (matching physical Watchy case) -->
+    <!-- Top-Left Bolt -->
+    <path android:fillColor="#E2E8F0" android:strokeColor="#334155" android:strokeWidth="1"
+        android:pathData="M31,30 m-3.2,0 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0" />
+    <path android:fillColor="#475569"
+        android:pathData="M31,30 m-1.3,0 a1.3,1.3 0 1,0 2.6,0 a1.3,1.3 0 1,0 -2.6,0" />
+
+    <!-- Top-Right Bolt -->
+    <path android:fillColor="#E2E8F0" android:strokeColor="#334155" android:strokeWidth="1"
+        android:pathData="M77,30 m-3.2,0 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0" />
+    <path android:fillColor="#475569"
+        android:pathData="M77,30 m-1.3,0 a1.3,1.3 0 1,0 2.6,0 a1.3,1.3 0 1,0 -2.6,0" />
+
+    <!-- Bottom-Left Bolt -->
+    <path android:fillColor="#E2E8F0" android:strokeColor="#334155" android:strokeWidth="1"
+        android:pathData="M31,78 m-3.2,0 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0" />
+    <path android:fillColor="#475569"
+        android:pathData="M31,78 m-1.3,0 a1.3,1.3 0 1,0 2.6,0 a1.3,1.3 0 1,0 -2.6,0" />
+
+    <!-- Bottom-Right Bolt -->
+    <path android:fillColor="#E2E8F0" android:strokeColor="#334155" android:strokeWidth="1"
+        android:pathData="M77,78 m-3.2,0 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0" />
+    <path android:fillColor="#475569"
+        android:pathData="M77,78 m-1.3,0 a1.3,1.3 0 1,0 2.6,0 a1.3,1.3 0 1,0 -2.6,0" />
+
+    <!-- 200x200 Off-White E-Paper Screen -->
+    <path
+        android:fillColor="#F1F5F0"
+        android:strokeColor="#1E293B"
+        android:strokeWidth="1.5"
+        android:pathData="M35,34 L73,34 A2,2 0 0,1 75,36 L75,72 A2,2 0 0,1 73,74 L35,74 A2,2 0 0,1 33,72 L33,36 A2,2 0 0,1 35,34 Z" />
+
+    <!-- Bold E-Paper Time "3:20" inside Screen -->
+    <!-- Digit '3' -->
+    <path
+        android:strokeColor="#111827"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M37.5,42 L44,42 L44,48.5 L38.5,48.5 M44,48.5 L44,55 L37.5,55" />
+    <!-- Colon ':' -->
+    <path
+        android:fillColor="#111827"
+        android:pathData="M48,45 m-1.4,0 a1.4,1.4 0 1,0 2.8,0 a1.4,1.4 0 1,0 -2.8,0 M48,52 m-1.4,0 a1.4,1.4 0 1,0 2.8,0 a1.4,1.4 0 1,0 -2.8,0" />
+    <!-- Digit '2' -->
+    <path
+        android:strokeColor="#111827"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M52.5,42 L59.5,42 L59.5,48.5 L52.5,48.5 L52.5,55 L59.5,55" />
+    <!-- Digit '0' -->
+    <path
+        android:strokeColor="#111827"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M63.5,42 L70.5,42 L70.5,55 L63.5,55 Z" />
+
+    <!-- Subtitle Lines ("Friday / Sept 24") on E-Paper Screen -->
+    <path
+        android:strokeColor="#111827"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:pathData="M44,62 L64,62" />
+    <path
+        android:strokeColor="#334155"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M39,68 L69,68" />
+</vector>

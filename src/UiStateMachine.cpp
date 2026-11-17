@@ -11,14 +11,23 @@ ShowButtonsState showButtonsState;
 WeatherState weatherState;
 BleRemoteState bleRemoteState;
 
+static unsigned long lastActivityTime = 0;
+
 // UiStateMachine implementation
 UiStateMachine::UiStateMachine(OverrideGSR* w) : StateMachine(&watchfaceState), watchy(w) {
 }
 
 void UiStateMachine::update() {
+    // 1. Tick BLE 30-second timeout
+    if (watchy) {
+        watchy->tickBleTimeout();
+    }
+
     if (pendingBleMode != 0) {
         uint8_t modeCmd = pendingBleMode;
         pendingBleMode = 0;
+        lastActivityTime = millis();
+        if (watchy) watchy->refreshBleActivity();
         if (modeCmd == 1) { // MODE:WATCH
             bleMirrorMode = true;
             setState(&watchfaceState);
@@ -36,6 +45,8 @@ void UiStateMachine::update() {
     if (Button) {
         uint8_t b = Button;
         Button = 0;
+        lastActivityTime = millis();
+        if (watchy) watchy->refreshBleActivity();
         
         // Vibrate shortly when a SWx has been pushed
         watchy->VibeTo(true);
@@ -48,6 +59,28 @@ void UiStateMachine::update() {
     // Auto-return to watchfaceState if menu was closed by WatchyGSR
     if (currentState == &menuState && watchy->NoMenu()) {
         setState(&watchfaceState);
+    }
+
+    // 2. Global 20-second inactivity timeout for all secondary screens (except suspend)
+    if (currentState != &watchfaceState && currentState != &suspendState) {
+        if (currentState == &weatherState && watchy && watchy->isBleWeatherPending() && watchy->isBleConnected()) {
+            // Weather fetch is ongoing and phone is connected: stay alive while waiting (failsafe 60s)
+            if (lastActivityTime > 0 && (millis() - lastActivityTime >= 60000)) {
+                lastActivityTime = millis();
+                setState(&watchfaceState);
+            }
+        } else if (lastActivityTime > 0 && (millis() - lastActivityTime >= 20000)) {
+            lastActivityTime = millis();
+            setState(&watchfaceState);
+        }
+    }
+
+    // 3. WiFi AP 120-second inactivity timeout: shut down AP if idle to save battery
+    if (watchy && watchy->isWatchyAPOn()) {
+        if (watchy->getWifiIdleSeconds() >= 120) {
+            watchy->stopWatchyAP();
+            watchy->UpdateScreen(true);
+        }
     }
 
     StateMachine::update();
@@ -74,6 +107,7 @@ void WatchfaceState::exit(StateMachine* sm) {
 
 void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
     UiStateMachine* usm = (UiStateMachine*)sm;
+    if (usm->watchy) usm->watchy->refreshBleActivity();
     bool haptic = false;
     bool refresh = false;
     
@@ -86,6 +120,13 @@ void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
         else if (callingForHelp) usm->setState(&findFoneState);
         else if (showingWeather) usm->setState(&weatherState);
         else if (showingBleRemote) usm->setState(&bleRemoteState);
+        return;
+    }
+
+    // Direct exit for WiFi AP if running while on Watch Face: SW2 -> Stop AP
+    if (button == 2 && usm->watchy->isWatchyAPOn()) {
+        usm->watchy->stopWatchyAP();
+        usm->watchy->UpdateScreen(true);
         return;
     }
 
@@ -117,6 +158,7 @@ void WatchfaceState::handleButton(StateMachine* sm, uint8_t button) {
 
 // MenuState implementation
 void MenuState::enter(StateMachine* sm) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
     usm->watchy->ShowDefaultMenu();
 }
@@ -128,13 +170,16 @@ void MenuState::exit(StateMachine* sm) {
 }
 
 void MenuState::handleButton(StateMachine* sm, uint8_t button) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
+    if (usm->watchy) usm->watchy->refreshBleActivity();
     // Call the legacy menu handling logic
     usm->watchy->handleMenuButton(button);
 }
 
 // MedInfoState implementation
 void MedInfoState::enter(StateMachine* sm) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
     showingMedInfo = true;
     usm->watchy->CloseMenu();
@@ -151,6 +196,7 @@ void MedInfoState::exit(StateMachine* sm) {
 }
 
 void MedInfoState::handleButton(StateMachine* sm, uint8_t button) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
     if (button == 2) { // Back
         usm->setState(&watchfaceState);
@@ -159,6 +205,7 @@ void MedInfoState::handleButton(StateMachine* sm, uint8_t button) {
 
 // FindFoneState implementation
 void FindFoneState::enter(StateMachine* sm) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
     callingForHelp = true;
     usm->watchy->AskForWiFi();
@@ -176,6 +223,7 @@ void FindFoneState::exit(StateMachine* sm) {
 }
 
 void FindFoneState::handleButton(StateMachine* sm, uint8_t button) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
     if (button == 2) { // Back
         usm->setState(&watchfaceState);
@@ -248,30 +296,56 @@ void ShowButtonsState::handleButton(StateMachine* sm, uint8_t button) {
 
 // WeatherState implementation
 void WeatherState::enter(StateMachine* sm) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
     showingWeather = true;
+    bleMirrorMode = false;
+    if (usm->watchy) usm->watchy->clearWeatherCompleteTime();
     usm->watchy->CloseMenu();
-    if (!usm->watchy->IsWeatherAvailable()) {
-        usm->watchy->StartWeather();
-    }
+    usm->watchy->requestBleWeather();
     usm->watchy->UpdateScreen(true);
 }
 
 void WeatherState::execute(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     usm->watchy->KeepDisplayAwake();
+
+    if (usm->watchy && usm->watchy->getWeatherCompleteTime() > 0) {
+        if (millis() - usm->watchy->getWeatherCompleteTime() >= 5000) {
+            usm->watchy->clearWeatherCompleteTime();
+            usm->setState(&watchfaceState);
+            return;
+        }
+    }
 }
 
 void WeatherState::exit(StateMachine* sm) {
     showingWeather = false;
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    if (usm->watchy) {
+        usm->watchy->clearWeatherCompleteTime();
+        if (usm->watchy->isBleConnected()) {
+            usm->watchy->extendBleKeepAlive(10000);
+        } else if (!bleMirrorMode) {
+            usm->watchy->stopBleHid();
+        }
+    }
 }
 
 void WeatherState::handleButton(StateMachine* sm, uint8_t button) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
+    if (usm->watchy) usm->watchy->refreshBleActivity();
     if (button == 2) { // Back
+        while (usm->watchy->getButtonPins() != 0) { delay(10); }
+        usm->watchy->SetTurbo();
+        Button = 0;
+        if (usm->watchy) usm->watchy->clearWeatherCompleteTime();
         usm->setState(&watchfaceState);
-    } else if (button == 3) { // Up -> manual refresh
-        usm->watchy->StartWeather();
+        return;
+    } else if (button == 3) { // Up -> manual refresh via BLE Twin
+        if (usm->watchy) usm->watchy->clearWeatherCompleteTime();
+        usm->watchy->requestBleWeather();
         usm->watchy->UpdateScreen();
     }
 }
@@ -280,6 +354,7 @@ void WeatherState::handleButton(StateMachine* sm, uint8_t button) {
 static unsigned long bleRemoteEnterTime = 0;
 
 void BleRemoteState::enter(StateMachine* sm) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
     showingBleRemote = true;
     bleMirrorMode = false;
@@ -297,13 +372,19 @@ void BleRemoteState::execute(StateMachine* sm) {
 void BleRemoteState::exit(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     showingBleRemote = false;
-    if (!bleMirrorMode) {
-        usm->watchy->stopBleHid();
+    if (usm->watchy) {
+        if (usm->watchy->isBleConnected()) {
+            usm->watchy->extendBleKeepAlive(10000);
+        } else if (!bleMirrorMode) {
+            usm->watchy->stopBleHid();
+        }
     }
 }
 
 void BleRemoteState::handleButton(StateMachine* sm, uint8_t button) {
+    lastActivityTime = millis();
     UiStateMachine* usm = (UiStateMachine*)sm;
+    if (usm->watchy) usm->watchy->refreshBleActivity();
     if (button == 2) { // Back / SW2 -> Exit BLE Remote
         while (usm->watchy->getButtonPins() != 0) { delay(10); }
         usm->watchy->SetTurbo();

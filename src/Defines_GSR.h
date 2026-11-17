@@ -90,6 +90,7 @@
 #define GSR_MENU_UTILS_MED 42
 #define GSR_MENU_UTILS_WEAT 43
 #define GSR_MENU_UTILS_BLE 44
+#define GSR_MENU_UTILS_WIFI 45
 
 // Menu segments.
 #define GSR_MENU_INNORMAL 0

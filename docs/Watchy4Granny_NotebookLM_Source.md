@@ -19,10 +19,10 @@ The Watchy smartwatch features a **200x200 pixel monochrome e-paper display** (`
 
 | Physical Button | Physical Position | Default Logical ID | Function on Watch Face | Function Inside Menus | Function in Custom Assistive Screens |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **SW1** | Bottom-Left | `1` (Menu / Enter) | Opens the Root Menu (`MenuState`) | **Selects / Enters** the highlighted submenu or confirms an edited setting | Dismisses `Show Buttons` overlay (after 1s debounce) |
-| **SW2** | Top-Left | `2` (Back / Cancel) | Idle on standard watch face | **Backs out** to the parent menu, cancels an edit, or closes the Root Menu back to the Watch Face | Exits `Med Info`, cancels/exits `Find Phone`, or dismisses `Show Buttons` |
-| **SW3** | Top-Right | `3` (Up / Increment) | Passed to watch face style | Scrolls **Up** (`Menu.Item - 1`) through menu items or increments a setting value | Wakes the watch from `SuspendState` while charging; dismisses `Show Buttons` |
-| **SW4** | Bottom-Right | `4` (Down / Decrement) | Passed to watch face style | Scrolls **Down** (`Menu.Item + 1`) through menu items or decrements a setting value | Dismisses `Show Buttons` overlay (after 1s debounce) |
+| **SW1** | Bottom-Left | `1` (Menu / Enter) | Opens the Root Menu (`MenuState`) | **Selects / Enters** the highlighted submenu or confirms an edited setting | Dismisses `Show Buttons` (after 1s); **Play / Pause** media key in `BLE Remote` |
+| **SW2** | Top-Left | `2` (Back / Cancel) | Turns off WiFi SoftAP if currently active | **Backs out** to the parent menu, cancels an edit, or closes the Root Menu | Exits `Med Info`, `Weather`, `Find Phone`, `BLE Remote`, or `Show Buttons` back to Watch Face |
+| **SW3** | Top-Right | `3` (Up / Increment) | Direct shortcut to **Weather** screen (`WeatherState`) | Scrolls **Up** (`Menu.Item - 1`) through menu items or increments a setting value | Requests BLE weather refresh in `Weather`; **Volume Up** media key in `BLE Remote`; Wakes watch from `SuspendState` while charging |
+| **SW4** | Bottom-Right | `4` (Down / Decrement) | Direct shortcut to **BLE Remote** (`BleRemoteState`) | Scrolls **Down** (`Menu.Item + 1`) through menu items or decrements a setting value | **Volume Down** media key in `BLE Remote`; dismisses `Show Buttons` (after 1s) |
 
 > **Accessibility & Handedness Note**: Watchy_GSR supports left-handed mode (`Dexterity: Left-handed`) and vertical button swapping (`Menu & Back: Swapped`). The firmware resolves physical buttons to logical functions via `WatchyGSR::getSWValue(SW1, SW2, SW3, SW4)` so the `Show Buttons` overlay always labels the physical corners accurately.
 
@@ -83,6 +83,9 @@ All menus in Watchy4Granny use circular "roller" navigation (`roller(val, min, m
       * **40. Show Buttons (`GSR_MENU_UTILS_BTN`)** — Launches `ShowButtonsState` (10-second corner button legend)
       * **41. Find Phone (`GSR_MENU_UTILS_FIND`)** — Launches `FindFoneState` (connects to WiFi and triggers IFTTT webhook)
       * **42. Med Info (`GSR_MENU_UTILS_MED`)** — Launches `MedInfoState` (displays emergency medical identification)
+      * **43. Weather (`GSR_MENU_UTILS_WEAT`)** — Launches `WeatherState` (dedicated Open-Meteo weather report with feels-like & elevation)
+      * **44. BLE Remote (`GSR_MENU_UTILS_BLE`)** — Launches `BleRemoteState` (BLE HID media controls + Digital Twin GATT service)
+      * **45. Watchy Connect (`GSR_MENU_UTILS_WIFI`)** — Starts local WiFi SoftAP (`192.168.4.1`) for web setup and OTA
 
 ### 3.2 Visual Menu Navigation Flowchart
 
@@ -90,6 +93,11 @@ All menus in Watchy4Granny use circular "roller" navigation (`roller(val, min, m
 flowchart LR
     WF["Watch Face (WatchfaceState)"] -->|"SW1 (Menu)"| ROOT["Root Menu (GSR_MENU_INNORMAL)"]
     ROOT -->|"SW2 (Back)"| WF
+
+    %% Direct Shortcuts from Watch Face
+    WF -->|"SW3 (Direct Up)"| ST_WEAT["WeatherState (Open-Meteo Report)"]
+    WF -->|"SW4 (Direct Down)"| ST_BLE["BleRemoteState (HID + Digital Twin)"]
+    WF -->|"SW2 (if AP active)"| AP_OFF["Stop WiFi AP"]
 
     ROOT -->|"0"| M_STEPS["0: Steps"]
     ROOT -->|"1"| M_ALARMS["1: Alarms"]
@@ -102,11 +110,17 @@ flowchart LR
         U_BTN["40: Show Buttons"]
         U_FIND["41: Find Phone"]
         U_MED["42: Med Info"]
+        U_WEAT["43: Weather"]
+        U_BLE["44: BLE Remote"]
+        U_WIFI["45: Watchy Connect"]
     end
     M_UTILS -->|"SW1"| SUB_UTILS
     U_BTN -->|"SW1"| ST_BTN["ShowButtonsState (10s Overlay)"]
     U_FIND -->|"SW1"| ST_FIND["FindFoneState (WiFi + IFTTT)"]
     U_MED -->|"SW1"| ST_MED["MedInfoState (Emergency Info)"]
+    U_WEAT -->|"SW1"| ST_WEAT
+    U_BLE -->|"SW1"| ST_BLE
+    U_WIFI -->|"SW1"| AP_MODE["SoftAP (192.168.4.1)"]
 
     subgraph SUB_ALARMS["Alarms Submenu (GSR_MENU_INALARMS)"]
         A_1_4["6-9: Alarms 1 to 4"]
@@ -155,6 +169,8 @@ Instead of relying on a monolithic procedural loop, Watchy4Granny introduces two
    * **`ShowButtonsState`**: Sets `showingButtons = true` and records `showButtonsStartTime = millis()`. Keeps the display awake for 10 seconds (resetting the timer if a button is held down), ignores presses during the first 1,000ms to prevent button bounce from menu selection, and returns to `WatchfaceState` on any subsequent button press or after 10 seconds.
    * **`FindFoneState`**: Sets `callingForHelp = true` and requests WiFi via `watchy->AskForWiFi()`. Once connected, `OverrideGSR::InsertWiFi()` performs an HTTPS `GET` request to the IFTTT Maker webhook (`find_phone`), sets `helpRequested = true` (`PHONE PINGED!`), and releases WiFi. If WiFi fails, `OverrideGSR::InsertWiFiEnding()` sets `wifiFailed = true` (`WIFI FAILED!`). Pressing `SW2` (Back) cancels and returns to `WatchfaceState`.
    * **`MedInfoState`**: Sets `showingMedInfo = true`, keeps the display awake, and renders centered `MEDICAL INFO` with auto-scaled typography (`aAntiCorona11pt7b` or `10pt7b` if the name exceeds 180px width). Pressing `SW2` returns to `WatchfaceState`.
+   * **`WeatherState`**: Displays the dedicated Open-Meteo weather report with inline feels-like temperature `tempC (feelsC)`, ground elevation (`Elevation: X m`), condition text, humidity, wind speed, and pressure. Pressing `SW3` initiates an on-demand BLE weather request (`WEATHER *`), signalling the Digital Twin. Keeps the watch awake while fetch is ongoing, holds for 5 seconds after sync completes (clearing `*`), and extends BLE keep-alive for 10 seconds on exit to allow the Twin to capture the updated screen.
+   * **`BleRemoteState`**: Exposes BLE HID Media Control (`SW3` = Vol+, `SW4` = Vol-, `SW1` = Play/Pause) alongside the Digital Twin GATT service. Extends BLE keep-alive on exit so the Twin can poll final telemetry.
    * **`SuspendState`**: Triggered in `OverrideGSR::InsertOnMinute()` when calculated battery percentage (`3.30V` = 0%, `4.20V` = 100%) is `<= GetSuspendLevel()` and not charging (`GetBatteryState() != 3`). Blocks all normal button presses. When plugged into USB power (`GetBatteryState() == 3`), keeps the watch awake to display charging progress, suspension timestamp, step count, timer state, and a blinking `*` prompt near `SW3` so pressing `SW3` wakes the watch back to `WatchfaceState`.
 
 ```mermaid
@@ -170,21 +186,53 @@ stateDiagram-v2
     state "UI State Machine" as USM {
         [*] --> WatchfaceState
         WatchfaceState --> MenuState : SW1 (Menu)
+        WatchfaceState --> WeatherState : SW3 (Direct Weather Shortcut)
+        WatchfaceState --> BleRemoteState : SW4 (Direct BLE Remote Shortcut)
         WatchfaceState --> SuspendState : Battery % <= SuspendLevel
 
         MenuState --> WatchfaceState : SW2 at Root / Timeout
         MenuState --> ShowButtonsState : Utilities -> Show Buttons
         MenuState --> FindFoneState : Utilities -> Find Phone
         MenuState --> MedInfoState : Utilities -> Med Info
+        MenuState --> WeatherState : Utilities -> Weather
+        MenuState --> BleRemoteState : Utilities -> BLE Remote
 
         ShowButtonsState --> WatchfaceState : Button (>1s) / 10s Timeout
-        FindFoneState --> WatchfaceState : SW2 (Back) / Next Minute
-        MedInfoState --> WatchfaceState : SW2 (Back) / Next Minute
+        FindFoneState --> WatchfaceState : SW2 (Back) / 20s Timeout / Webhook Done
+        MedInfoState --> WatchfaceState : SW2 (Back) / 20s Inactivity Timeout
+        WeatherState --> WatchfaceState : SW2 (Back) / 20s Inactivity / 5s Post-Sync
+        WeatherState --> WeatherState : SW3 (Up - Request BLE Weather from Twin)
+        BleRemoteState --> WatchfaceState : SW2 (Back) / 20s Inactivity Timeout
+        BleRemoteState --> BleRemoteState : SW3 (Vol+) / SW4 (Vol-) / SW1 (Play/Pause)
         SuspendState --> WatchfaceState : SW3 (Up) while Charging
     }
 
     AwakeState --> USM : powers & ticks
 ```
+
+### 4.1 BLE Digital Twin GATT Protocol & Status Telemetry
+
+Watchy exposes a custom BLE GATT service (`19b10000-e8f2-537e-4f6c-d104768a1214`) while in `BleRemoteState` or `WeatherState`:
+
+* **Status Characteristic (`19b10004-e8f2-537e-4f6c-d104768a1214`) [Read / Notify]**:
+  Publishes comma-separated telemetry in the format:
+  `batteryPct,batteryVoltage,steps,charging,screenFrameSeq,mode,bleWeatherReqSeq`
+  * `batteryPct`: Battery percentage (0–100%).
+  * `batteryVoltage`: Instantaneous battery voltage (e.g. `4.12`).
+  * `steps`: Current daily step count.
+  * `charging`: Charging status boolean (`1` = charging, `0` = on battery).
+  * `screenFrameSeq`: Incremental frame counter bumped on every e-paper display refresh (`InsertPostDraw`). The Twin compares `screenFrameSeq != oldSeq` to initiate an automatic 5,000-byte screen capture chunked via `SCR:offset,len` commands (`TWIN_CHAR_SCREEN_UUID`).
+  * `mode`: Active UI screen mode (`0` = Watchface, `1` = BLE Remote, `2` = Weather).
+  * `bleWeatherReqSeq`: Incremental sequence counter set when the user triggers a manual weather refresh (`SW3`). When `> 0`, the Digital Twin fetches current Open-Meteo weather and pushes it back via `TWIN_CHAR_WEAT_UUID`. Automatically resets to `0` once weather is acknowledged.
+
+* **Weather Characteristic (`19b10003-e8f2-537e-4f6c-d104768a1214`) [Write]**:
+  Receives 7 comma-separated weather values from the Twin: `tempC,feelsC,humidity,windSpeed,pressure,conditionCode,elevationM`.
+* **Location Characteristic (`19b10002-e8f2-537e-4f6c-d104768a1214`) [Read / Write]**:
+  Reads or sets GPS coordinates (`lat,lon`), persisted in NVS.
+* **Time Characteristic (`19b10001-e8f2-537e-4f6c-d104768a1214`) [Write]**:
+  Receives UNIX epoch timestamp and POSIX timezone rule from the Twin.
+* **Screen Buffer Transfer & Keep-Alive**:
+  When transitioning from `WeatherState` or `BleRemoteState` back to `WatchfaceState`, Watchy holds the BLE connection alive for 10 seconds (`bleKeepAliveUntil`), and `InsertNeedAwake()` keeps the CPU running while `screenReadMode` is active so the Digital Twin can seamlessly complete framebuffer transfers without truncation.
 
 ---
 

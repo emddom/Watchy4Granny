@@ -28,6 +28,9 @@ draw_menu_utils = """        case GSR_MENU_UTILS:
         case GSR_MENU_UTILS_BLE:
             O = "BLE Remote";
             break;
+        case GSR_MENU_UTILS_WIFI:
+            O = "Watchy Connect";
+            break;
 """
 content = content.replace('case GSR_MENU_OPTIONS:', draw_menu_utils + '        case GSR_MENU_OPTIONS:')
 
@@ -42,11 +45,21 @@ case1_utils_replacement = """              if (Menu.Item == GSR_MENU_UTILS && Me
                   UpdateDisp = true;
                   SetTurbo();
               }else if (Menu.Style == GSR_MENU_INUTILS) {
-                  if (Menu.Item == GSR_MENU_UTILS_BTN) { InsertHandleShowButtons(); }
-                  else if (Menu.Item == GSR_MENU_UTILS_FIND) { InsertHandleFindPhone(); }
-                  else if (Menu.Item == GSR_MENU_UTILS_MED) { InsertHandleMedInfo(); }
-                  else if (Menu.Item == GSR_MENU_UTILS_WEAT) { InsertHandleWeather(); }
-                  else if (Menu.Item == GSR_MENU_UTILS_BLE) { InsertHandleBleRemote(); }
+                  if (Menu.Item == GSR_MENU_UTILS_BTN) { GuiMode = GSR_WATCHON; InsertHandleShowButtons(); UpdateDisp = true; SetTurbo(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_FIND) { GuiMode = GSR_WATCHON; InsertHandleFindPhone(); UpdateDisp = true; SetTurbo(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_MED) { GuiMode = GSR_WATCHON; InsertHandleMedInfo(); UpdateDisp = true; SetTurbo(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_WEAT) { GuiMode = GSR_WATCHON; InsertHandleWeather(); UpdateDisp = true; SetTurbo(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_BLE) { GuiMode = GSR_WATCHON; InsertHandleBleRemote(); UpdateDisp = true; SetTurbo(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_WIFI) {
+                      Menu.Item = GSR_MENU_WIFI;
+                      Menu.Style = GSR_MENU_INOPTIONS;
+                      Menu.SubItem = 1;
+                      WatchyAPOn = true;
+                      ResetEndOTA();
+                      DoHaptic = true;
+                      UpdateDisp = true;
+                      SetTurbo();
+                  }
               }else if (Menu.Item == GSR_MENU_OPTIONS && Menu.SubItem == 0){  // Options"""
 content = content.replace(case1_utils, case1_utils_replacement)
 
@@ -67,7 +80,7 @@ content = content.replace(case2_utils, case2_utils_replacement)
 case3_utils = """              }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 case3_utils_replacement = """              }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_BLE);
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_WIFI);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 content = content.replace(case3_utils, case3_utils_replacement)
@@ -76,10 +89,55 @@ content = content.replace(case3_utils, case3_utils_replacement)
 case4_utils = """              }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 case4_utils_replacement = """              }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_BLE);
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_WIFI);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_SCRN, GSR_MENU_UNVS);"""
 content = content.replace(case4_utils, case4_utils_replacement)
+
+# 7. Add InsertAddWeb() hook before server.begin()
+if 'InsertAddWeb();' not in content:
+    content = content.replace('    RefreshCPU(GSR_CPUMAX);\n    server.begin();', '    InsertAddWeb();\n    RefreshCPU(GSR_CPUMAX);\n    server.begin();')
+
+# 8. SafeToDraw - do not blank screen when WatchyAPOn is true
+content = content.replace(
+    'bool WatchyGSR::SafeToDraw() { return (!(OTAUpdate || WatchyAPOn || (Menu.Item == GSR_MENU_TOFF && Menu.SubItem > 0 && Menu.SubItem < 6))); }',
+    'bool WatchyGSR::SafeToDraw() { return (!(OTAUpdate || (Menu.Item == GSR_MENU_TOFF && Menu.SubItem > 0 && Menu.SubItem < 6))); }'
+)
+
+# 9. Add stopWatchyAP() and isWatchyAPOn() implementations
+stop_ap_code = """
+void WatchyGSR::stopWatchyAP() {
+    if (WatchyAPOn) {
+        server.stop();
+        endWiFi();
+        setStatus("");
+        WatchyAPOn = false;
+        OTAEnd = false;
+        ResetEndOTA();
+        UpdateDisp = true;
+        Updates.Full = true;
+    }
+}
+
+bool WatchyGSR::isWatchyAPOn() const {
+    return WatchyAPOn;
+}
+"""
+if 'void WatchyGSR::stopWatchyAP()' not in content:
+    content = content.replace(
+        'bool WatchyGSR::InGame() { return (GuiMode == GSR_GAMEON); }',
+        'bool WatchyGSR::InGame() { return (GuiMode == GSR_GAMEON); }' + stop_ap_code
+    )
+
+# 10. Elevation field in Weatherinfo
+if 'float Elevation;' not in content:
+    content = content.replace(
+        'float WindGust;       /* "wind" "gust" from weather info */\n   } Weather;',
+        'float WindGust;       /* "wind" "gust" from weather info */\n     float Elevation;      /* "elevation" from weather info */\n   } Weather;'
+    )
+
+# 11. Battery status position alignment (BATTy = 193)
+content = content.replace('Design.Status.BATTy = 178;', 'Design.Status.BATTy = 193;')
 
 with open('src/Watchy_GSR.cpp', 'w') as f:
     f.write(content)

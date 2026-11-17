@@ -136,12 +136,12 @@ fun WatchyDigitalTwinApp(bleManager: WatchyBleManager) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Press SW4 on Watchy (BLE Remote) & Connect",
+                    text = "Dual-Mode: BLE or WiFi AP (192.168.4.1)",
                     color = Color(0xFF94A3B8),
                     fontSize = 12.sp
                 )
             }
-            StatusPill(connected = state.connected, connecting = state.connecting)
+            StatusPill(connected = state.connected, connecting = state.connecting, isWifi = state.isWifiMode)
         }
 
         // Card 1: Watchy Look-Alike 200x200 Bezel + Virtual SW1-SW4 Buttons
@@ -156,7 +156,7 @@ fun WatchyDigitalTwinApp(bleManager: WatchyBleManager) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Top Control Row
+                // Connection Buttons Row (BLE or WiFi)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -169,25 +169,43 @@ fun WatchyDigitalTwinApp(bleManager: WatchyBleManager) {
                             if (allGranted) bleManager.connect() else permLauncher.launch(requiredPermissions)
                         },
                         modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (state.connected) Color(0xFF22C55E) else Color(0xFF38BDF8)
+                            containerColor = if (state.connected && !state.isWifiMode) Color(0xFF22C55E) else Color(0xFF38BDF8)
                         )
                     ) {
                         Text(
-                            text = if (state.connected) "Connected (Tap to Re-sync)" else if (state.connecting) "Connecting..." else "Connect Watchy BLE",
+                            text = if (state.connected && !state.isWifiMode) "ᛒ BLE Connected" else "ᛒ BLE Connect",
                             color = Color(0xFF0F172A),
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             maxLines = 1
                         )
                     }
+
+                    Button(
+                        onClick = { bleManager.toggleWifiConnection() },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (state.connected && state.isWifiMode) Color(0xFF22C55E) else Color(0xFF0284C7)
+                        )
+                    ) {
+                        Text(
+                            text = if (state.connected && state.isWifiMode) "📶 WiFi Connected" else "📶 WiFi Connect",
+                            color = Color(0xFFF8FAFC),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+
                     OutlinedButton(
                         onClick = { bleManager.manualRefreshScreen() },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                         enabled = state.connected
                     ) {
-                        Text("Capture Screen", color = Color(0xFFF8FAFC), fontSize = 12.sp, maxLines = 1)
+                        Text("🔄 Capture", color = Color(0xFFF8FAFC), fontSize = 11.sp, maxLines = 1)
                     }
                 }
 
@@ -243,7 +261,13 @@ fun WatchyDigitalTwinApp(bleManager: WatchyBleManager) {
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
                     ) {
-                        Text("Stop BLE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(
+                            text = if (state.isWifiMode) "Stop WiFi" else "Stop BLE",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
                     }
                 }
 
@@ -732,20 +756,23 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun StatusPill(connected: Boolean, connecting: Boolean) {
+fun StatusPill(connected: Boolean, connecting: Boolean, isWifi: Boolean = false) {
     val bg = when {
+        connected && isWifi -> Color(0xFF38BDF8).copy(alpha = 0.2f)
         connected -> Color(0xFF22C55E).copy(alpha = 0.2f)
         connecting -> Color(0xFFF59E0B).copy(alpha = 0.2f)
         else -> Color(0xFF334155)
     }
     val fg = when {
+        connected && isWifi -> Color(0xFF38BDF8)
         connected -> Color(0xFF22C55E)
         connecting -> Color(0xFFF59E0B)
         else -> Color(0xFF94A3B8)
     }
     val text = when {
-        connected -> "CONNECTED"
-        connecting -> "SCANNING"
+        connected && isWifi -> "WIFI AP"
+        connected -> "BLE CONNECTED"
+        connecting -> "CONNECTING"
         else -> "DISCONNECTED"
     }
     Box(
@@ -821,7 +848,9 @@ suspend fun fetchAndPushOpenMeteo(lat: Double, lon: Double, bleManager: WatchyBl
                 readTimeout = 7000
             }
             val body = conn.inputStream.bufferedReader().use { it.readText() }
-            val current = JSONObject(body).getJSONObject("current")
+            val root = JSONObject(body)
+            val elev = root.optDouble("elevation", 0.0).roundToInt()
+            val current = root.getJSONObject("current")
             val tempC = current.getDouble("temperature_2m").roundToInt()
             val feelsC = current.getDouble("apparent_temperature").roundToInt()
             val code = current.getInt("weather_code")
@@ -829,7 +858,7 @@ suspend fun fetchAndPushOpenMeteo(lat: Double, lon: Double, bleManager: WatchyBl
             val windMs = String.format(Locale.US, "%.1f", current.getDouble("wind_speed_10m"))
             val pres = current.getDouble("surface_pressure").roundToInt()
 
-            val weatherPayload = "$tempC,$feelsC,$code,$hum,$windMs,$pres"
+            val weatherPayload = "$tempC,$feelsC,$code,$hum,$windMs,$pres,$elev"
             val locPayload = String.format(Locale.US, "%.6f,%.6f", lat, lon)
             bleManager.pushWeatherPayload(weatherPayload, locPayload)
         } catch (e: Exception) {

@@ -219,9 +219,9 @@
   </style>
 </head>
 <body>
-  <h1>Watchy4Granny — BLE Digital Twin</h1>
+  <h1>Watchy4Granny — Digital Twin (BLE &amp; WiFi AP)</h1>
   <div class="sub">
-    Press <strong>SW4 (Bottom-Right)</strong> on the Watchy Watch Face (or open <strong>Menu &rarr; Utilities &rarr; BLE Remote</strong>), then click <strong>Connect Watchy BLE</strong> below.
+    Connect via <strong>BLE</strong> (Press SW4 on Watchy) OR connect via <strong>WiFi</strong> (Join Watchy's WiFi AP <code style="color:var(--accent)">Watchy Connect</code> at <code style="color:var(--accent)">192.168.4.1</code>).
   </div>
 
   <div class="card">
@@ -229,12 +229,16 @@
       <span>Live 200&times;200 E-Paper Screen Mirror &amp; Control</span>
       <span id="statusBadge" class="badge">DISCONNECTED</span>
     </h2>
+    <div class="row" style="margin-bottom: 8px;">
+      <button id="btnConnect" onclick="connectWatchy()">ᛒ Connect BLE</button>
+      <input type="text" id="inpWifiIp" value="http://192.168.4.1" style="max-width: 170px;" placeholder="http://192.168.4.1" />
+      <button id="btnConnectWifi" class="secondary" onclick="toggleWifiConnection()">📶 Connect WiFi (192.168.4.1)</button>
+    </div>
     <div class="row">
-      <button id="btnConnect" onclick="connectWatchy()">Connect Watchy BLE</button>
       <button id="btnModeWatch" class="secondary" onclick="setWatchyMode('WATCH')" disabled>🖥️ Watchface</button>
       <button id="btnModeBle" class="secondary" onclick="setWatchyMode('BLE')" disabled>🎵 Media Remote</button>
       <button id="btnRefreshScreen" class="secondary" onclick="manualRefreshScreen()" disabled>🔄 Capture Screen</button>
-      <button id="btnStopBle" class="danger" onclick="setWatchyMode('OFF')" disabled>💤 Stop BLE</button>
+      <button id="btnStopBle" class="danger" onclick="setWatchyMode('OFF')" disabled>💤 Disconnect / Sleep</button>
     </div>
 
     <div class="watchy-stage">
@@ -333,10 +337,13 @@
     const TWIN_CHAR_WEAT_UUID   = '19b10003-e8f2-537e-4f6c-d104768a1214';
     const TWIN_CHAR_STATUS_UUID = '19b10004-e8f2-537e-4f6c-d104768a1214';
 
+    let isWifiMode = false;
+    let wifiBaseUrl = "http://192.168.4.1";
     let bleDevice = null;
     let charTime = null, charLoc = null, charWeat = null, charStatus = null;
     let bleBusy = false;
     let lastFrameSeq = null;
+    let lastWeatherReqSeq = "0";
     let pollTimer = null;
     const framebuffer = new Uint8Array(5000);
     const dec = new TextDecoder();
@@ -388,9 +395,9 @@
       el.innerHTML = `[${t}] ${msg}<br/>` + el.innerHTML;
     }
 
-    function setConnectedUi(connected) {
+    function setConnectedUi(connected, modeText = 'CONNECTED') {
       const badge = document.getElementById('statusBadge');
-      badge.textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
+      badge.textContent = connected ? modeText : 'DISCONNECTED';
       badge.className = 'badge' + (connected ? ' connected' : '');
       const ids = [
         'btnModeWatch', 'btnModeBle', 'btnRefreshScreen', 'btnStopBle',
@@ -403,6 +410,77 @@
       if (!connected && pollTimer) {
         clearInterval(pollTimer);
         pollTimer = null;
+      }
+    }
+
+    async function toggleWifiConnection() {
+      if (isWifiMode) {
+        // Disconnect WiFi
+        isWifiMode = false;
+        setConnectedUi(false);
+        log('Disconnected from Watchy WiFi.');
+        return;
+      }
+
+      wifiBaseUrl = document.getElementById('inpWifiIp').value.trim() || 'http://192.168.4.1';
+      log(`Connecting to Watchy WiFi AP at ${wifiBaseUrl}...`);
+
+      try {
+        const res = await fetch(`${wifiBaseUrl}/api/status`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        isWifiMode = true;
+        setConnectedUi(true, 'WIFI CONNECTED');
+        log(`Connected to Watchy via WiFi AP! Battery: ${data.battery}%, Steps: ${data.steps}`);
+
+        updateTelemetryFromWifi(data);
+        await readScreenWifi();
+
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(pollWifiStatus, 1200);
+      } catch (err) {
+        log(`WiFi connect failed: ${err.message}. Make sure your PC/phone is connected to "Watchy Connect" WiFi!`);
+      }
+    }
+
+    function updateTelemetryFromWifi(data) {
+      document.getElementById('valTime').textContent = data.time.split(',')[0];
+      document.getElementById('valBatt').textContent = `${data.battery}% (${data.voltage}V)${data.charging ? ' ⚡' : ''}`;
+      document.getElementById('valSteps').textContent = data.steps;
+      if (data.frameSeq !== undefined) lastFrameSeq = data.frameSeq;
+      if (data.weatherReqSeq && data.weatherReqSeq > 0 && String(data.weatherReqSeq) !== lastWeatherReqSeq) {
+        lastWeatherReqSeq = String(data.weatherReqSeq);
+        log(`Watchy requested weather via WiFi! Auto-fetching...`);
+        setTimeout(fetchAndPushWeather, 100);
+      }
+    }
+
+    async function pollWifiStatus() {
+      if (!isWifiMode || bleBusy) return;
+      try {
+        const res = await fetch(`${wifiBaseUrl}/api/status`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const oldSeq = lastFrameSeq;
+        updateTelemetryFromWifi(data);
+        if (oldSeq !== null && data.frameSeq !== oldSeq) {
+          await readScreenWifi();
+        }
+      } catch (_) {}
+    }
+
+    async function readScreenWifi() {
+      try {
+        const prog = document.getElementById('screenProgress');
+        prog.style.width = '30%';
+        const res = await fetch(`${wifiBaseUrl}/api/screen`, { cache: 'no-store' });
+        const buf = await res.arrayBuffer();
+        framebuffer.set(new Uint8Array(buf));
+        prog.style.width = '100%';
+        renderFramebufferToCanvas(5000);
+        setTimeout(() => { prog.style.width = '0%'; }, 200);
+      } catch (err) {
+        log('WiFi screen read failed: ' + err.message);
       }
     }
 
@@ -444,11 +522,16 @@
 
         setConnectedUi(true);
         lastFrameSeq = null;
-        log('Connected! Switching to Watchface mode & reading 200x200 screen...');
+        log('Connected! Checking mode & reading 200x200 screen...');
         await withBleLock(async () => {
-          await charTime.writeValue(enc.encode('MODE:WATCH'));
-          await new Promise(r => setTimeout(r, 380));
           await readTelemetryUnlocked();
+          const sStr = dec.decode(await charStatus.readValue());
+          const parts = sStr.split(',');
+          const mode = parts[5] || '0';
+          if (mode === '1') {
+            await charTime.writeValue(enc.encode('MODE:WATCH'));
+            await new Promise(r => setTimeout(r, 280));
+          }
           await readScreenUnlocked();
         });
 
@@ -510,9 +593,14 @@
       await withBleLock(async () => {
         try {
           const sStr = dec.decode(await charStatus.readValue());
-          const [pct, volt, steps, chg, frameSeq] = sStr.split(',');
+          const [pct, volt, steps, chg, frameSeq, mode, reqSeq] = sStr.split(',');
           document.getElementById('valBatt').textContent = `${pct}% (${volt}V)${chg === '1' ? ' ⚡' : ''}`;
           document.getElementById('valSteps').textContent = steps;
+          if (reqSeq !== undefined && reqSeq !== '0' && reqSeq !== lastWeatherReqSeq) {
+            lastWeatherReqSeq = reqSeq;
+            log(`Watchy requested fresh weather (seq: ${reqSeq})! Auto-fetching...`);
+            setTimeout(fetchAndPushWeather, 100);
+          }
           if (frameSeq !== undefined && frameSeq !== lastFrameSeq) {
             lastFrameSeq = frameSeq;
             await readScreenUnlocked();
@@ -525,6 +613,11 @@
     }
 
     async function manualRefreshScreen() {
+      if (isWifiMode) {
+        log('Capturing screen over WiFi AP...');
+        await readScreenWifi();
+        return;
+      }
       await withBleLock(async () => {
         log('Capturing 200x200 e-paper framebuffer from Watchy...');
         await readTelemetryUnlocked();
@@ -534,6 +627,16 @@
     }
 
     async function setWatchyMode(mode) {
+      if (isWifiMode) {
+        if (mode === 'OFF') {
+          await fetch(`${wifiBaseUrl}/exit`, { method: 'GET', mode: 'no-cors' }).catch(() => {});
+          isWifiMode = false;
+          setConnectedUi(false);
+          log('Exited WiFi AP mode on Watchy.');
+          return;
+        }
+        return;
+      }
       await withBleLock(async () => {
         try {
           await charTime.writeValue(enc.encode(`MODE:${mode}`));
@@ -555,6 +658,17 @@
     }
 
     async function pressWatchyButton(btnNum) {
+      if (isWifiMode) {
+        try {
+          log(`Pressed SW${btnNum} over WiFi AP`);
+          await fetch(`${wifiBaseUrl}/api/button?btn=${btnNum}`, { method: 'POST' });
+          await new Promise(r => setTimeout(r, 300));
+          await readScreenWifi();
+        } catch (err) {
+          log(`SW${btnNum} WiFi error: ${err.message}`);
+        }
+        return;
+      }
       await withBleLock(async () => {
         try {
           await charTime.writeValue(enc.encode(`BTN:${btnNum}`));
@@ -569,11 +683,26 @@
     }
 
     async function syncTime() {
+      const epochSec = Math.floor(Date.now() / 1000);
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const payload = tz ? `${epochSec},${tz}` : `${epochSec}`;
+
+      if (isWifiMode) {
+        try {
+          log(`Syncing Time over WiFi AP: ${payload}...`);
+          await fetch(`${wifiBaseUrl}/api/time`, { method: 'POST', body: payload });
+          await new Promise(r => setTimeout(r, 200));
+          await pollWifiStatus();
+          await readScreenWifi();
+          log('Time sync complete over WiFi.');
+        } catch (err) {
+          log('WiFi time sync error: ' + err.message);
+        }
+        return;
+      }
+
       await withBleLock(async () => {
         try {
-          const epochSec = Math.floor(Date.now() / 1000);
-          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-          const payload = tz ? `${epochSec},${tz}` : `${epochSec}`;
           await charTime.writeValue(enc.encode(payload));
           log(`Synced Time to Watchy: ${payload}`);
           await new Promise(r => setTimeout(r, 250));
@@ -648,6 +777,35 @@
         log('Enter or find city coordinates first.');
         return;
       }
+
+      if (isWifiMode) {
+        try {
+          log('Fetching live weather for WiFi push...');
+          const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m&wind_speed_unit=ms`;
+          const res = await fetch(url);
+          const data = await res.json();
+          const c = data.current;
+          const payload = [
+            Math.round(c.temperature_2m),
+            Math.round(c.apparent_temperature),
+            c.weather_code,
+            Math.round(c.relative_humidity_2m),
+            c.wind_speed_10m.toFixed(1),
+            Math.round(c.surface_pressure),
+            Math.round(data.elevation || 0)
+          ].join(',');
+
+          await fetch(`${wifiBaseUrl}/api/weather`, { method: 'POST', body: payload });
+          log(`Pushed Weather to Watchy via WiFi AP: ${payload}`);
+          await new Promise(r => setTimeout(r, 200));
+          await pollWifiStatus();
+          await readScreenWifi();
+        } catch (err) {
+          log('WiFi weather push error: ' + err.message);
+        }
+        return;
+      }
+
       await writeLocation();
       await withBleLock(async () => {
         try {
@@ -662,7 +820,8 @@
             c.weather_code,
             Math.round(c.relative_humidity_2m),
             c.wind_speed_10m.toFixed(1),
-            Math.round(c.surface_pressure)
+            Math.round(c.surface_pressure),
+            Math.round(data.elevation || 0)
           ].join(',');
           await charWeat.writeValue(enc.encode(payload));
           log(`Pushed Weather to Watchy: ${payload}`);

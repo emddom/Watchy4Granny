@@ -6,6 +6,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.location.LocationManager
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.*
@@ -13,15 +14,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 data class WatchyTwinUiState(
     val connected: Boolean = false,
     val connecting: Boolean = false,
+    val isWifiMode: Boolean = false,
+    val wifiBaseUrl: String = "http://192.168.4.1",
     val statusBanner: String = "",
     val watchTime: String = "--",
     val batteryText: String = "--",
@@ -33,7 +40,7 @@ data class WatchyTwinUiState(
     val hasValidScreen: Boolean = false,
     val screenProgress: Float = 0f,
     val frameSeq: String = "",
-    val logs: List<String> = listOf("Ready. Press SW4 on Watchy (BLE Remote) then tap Connect.")
+    val logs: List<String> = listOf("Ready. Connect via BLE (SW4 on Watchy) or WiFi (Watchy Connect).")
 )
 
 @SuppressLint("MissingPermission")
@@ -65,6 +72,57 @@ class WatchyBleManager(private val context: Context) {
     private var pollJob: Job? = null
     private var scanning = false
     private var serviceRefreshRetries = 0
+    private var watchMode = "0"
+    private var lastWeatherReqSeq = "0"
+    private var autoReconnectEnabled = true
+
+    init {
+        startAutoReconnectLoop()
+    }
+
+    private fun startAutoReconnectLoop() {
+        scope.launch {
+            while (isActive) {
+                delay(5000L)
+                if (!_state.value.connected && !_state.value.connecting && !scanning && autoReconnectEnabled) {
+                    val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+                    val adapter = btManager?.adapter
+                    if (adapter != null && adapter.isEnabled) {
+                        val activeConnected = try {
+                            btManager.getConnectedDevices(BluetoothProfile.GATT)
+                                .firstOrNull { it.name == "Watchy4Granny" }
+                        } catch (_: Exception) {
+                            null
+                        }
+                        if (activeConnected != null) {
+                            log("Watchy4Granny detected via BLE — auto-connecting...")
+                            connect()
+                        } else {
+                            // Brief background scan in case Watchy just turned on BLE (e.g. SW3 Weather)
+                            val scanner = try { adapter.bluetoothLeScanner } catch (_: Exception) { null }
+                            if (scanner != null) {
+                                scanning = true
+                                val settings = ScanSettings.Builder()
+                                    .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
+                                    .build()
+                                try {
+                                    scanner.startScan(null, settings, scanCallback)
+                                    mainHandler.postDelayed({
+                                        if (scanning) {
+                                            scanning = false
+                                            try { scanner.stopScan(scanCallback) } catch (_: Exception) {}
+                                        }
+                                    }, 2200L)
+                                } catch (_: Exception) {
+                                    scanning = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     fun log(msg: String) {
         val ts = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
@@ -272,9 +330,12 @@ class WatchyBleManager(private val context: Context) {
 
             scope.launch {
                 bleMutex.withLock {
-                    writeCharString(charTime, "MODE:WATCH")
-                    delay(280L)
                     readTelemetryUnlocked()
+                    // If Watchy is in BLE remote mode (mode == 1), switch it to WATCH mode
+                    if (watchMode == "1") {
+                        writeCharString(charTime, "MODE:WATCH")
+                        delay(280L)
+                    }
                     readScreenUnlocked()
                 }
                 startPolling()
@@ -366,11 +427,18 @@ class WatchyBleManager(private val context: Context) {
                 val steps = parts[2]
                 val chg = parts[3] == "1"
                 val seq = if (parts.size >= 5) parts[4] else _state.value.frameSeq
+                val mode = if (parts.size >= 6) parts[5] else "0"
+                val reqSeq = if (parts.size >= 7) parts[6] else "0"
+                watchMode = mode
                 _state.value = _state.value.copy(
                     batteryText = "$pct% (${volt}V)" + if (chg) " ⚡" else "",
                     stepsText = steps,
                     frameSeq = seq
                 )
+                if (reqSeq != "0" && reqSeq != lastWeatherReqSeq) {
+                    lastWeatherReqSeq = reqSeq
+                    autoFetchAndPushWeatherUnlocked()
+                }
             }
         }
 
@@ -434,12 +502,19 @@ class WatchyBleManager(private val context: Context) {
                             val steps = parts[2]
                             val chg = parts[3] == "1"
                             val seq = parts[4]
+                            val mode = if (parts.size >= 6) parts[5] else "0"
+                            val reqSeq = if (parts.size >= 7) parts[6] else "0"
+                            watchMode = mode
                             val oldSeq = _state.value.frameSeq
                             _state.value = _state.value.copy(
                                 batteryText = "$pct% (${volt}V)" + if (chg) " ⚡" else "",
                                 stepsText = steps,
                                 frameSeq = seq
                             )
+                            if (reqSeq != "0" && reqSeq != lastWeatherReqSeq) {
+                                lastWeatherReqSeq = reqSeq
+                                autoFetchAndPushWeatherUnlocked()
+                            }
                             if (oldSeq.isNotEmpty() && seq != oldSeq) {
                                 readScreenUnlocked()
                             }
@@ -450,7 +525,157 @@ class WatchyBleManager(private val context: Context) {
         }
     }
 
+    fun setWifiBaseUrl(url: String) {
+        _state.value = _state.value.copy(wifiBaseUrl = url.trim())
+    }
+
+    fun toggleWifiConnection() {
+        if (_state.value.isWifiMode) {
+            disconnectWifi()
+            return
+        }
+        connectWifi()
+    }
+
+    private fun connectWifi() {
+        val baseUrl = _state.value.wifiBaseUrl.ifEmpty { "http://192.168.4.1" }
+        _state.value = _state.value.copy(connecting = true, statusBanner = "Connecting to Watchy WiFi ($baseUrl)...")
+        log("Connecting to Watchy WiFi AP at $baseUrl...")
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val url = URL("$baseUrl/api/status")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 3500
+                    readTimeout = 3500
+                }
+                if (conn.responseCode != 200) {
+                    throw Exception("HTTP ${conn.responseCode}")
+                }
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
+
+                _state.value = _state.value.copy(
+                    connected = true,
+                    connecting = false,
+                    isWifiMode = true,
+                    statusBanner = "Connected to Watchy via WiFi AP!"
+                )
+                log("WiFi AP Connected! Battery: ${json.optInt("battery")}%, Steps: ${json.optLong("steps")}")
+
+                updateTelemetryFromWifiJson(json)
+                readScreenWifi()
+                startWifiPolling()
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    connected = false,
+                    connecting = false,
+                    isWifiMode = false,
+                    statusBanner = "WiFi connect failed. Connect to 'Watchy Connect' WiFi AP first."
+                )
+                log("WiFi connect error: ${e.message}. Connect phone to 'Watchy Connect' WiFi.")
+            }
+        }
+    }
+
+    fun disconnectWifi() {
+        pollJob?.cancel()
+        _state.value = _state.value.copy(
+            connected = false,
+            connecting = false,
+            isWifiMode = false,
+            statusBanner = "Disconnected from Watchy WiFi."
+        )
+        log("Disconnected from Watchy WiFi.")
+    }
+
+    private fun updateTelemetryFromWifiJson(json: JSONObject) {
+        val pct = json.optInt("battery")
+        val volt = json.optDouble("voltage")
+        val chg = json.optBoolean("charging")
+        val steps = json.optLong("steps")
+        val timeStr = json.optString("time", "--").split(",").firstOrNull() ?: "--"
+        val seq = json.optLong("frameSeq").toString()
+        val reqSeq = json.optLong("weatherReqSeq").toString()
+
+        _state.value = _state.value.copy(
+            batteryText = "$pct% (${String.format(Locale.US, "%.2f", volt)}V)" + if (chg) " ⚡" else "",
+            stepsText = steps.toString(),
+            watchTime = timeStr,
+            frameSeq = seq
+        )
+
+        if (reqSeq != "0" && reqSeq != lastWeatherReqSeq) {
+            lastWeatherReqSeq = reqSeq
+            log("Watchy requested weather via WiFi (seq: $reqSeq)! Auto-fetching...")
+            autoFetchAndPushWeatherUnlocked()
+        }
+    }
+
+    private fun startWifiPolling() {
+        pollJob?.cancel()
+        pollJob = scope.launch(Dispatchers.IO) {
+            val baseUrl = _state.value.wifiBaseUrl.ifEmpty { "http://192.168.4.1" }
+            while (isActive && _state.value.connected && _state.value.isWifiMode) {
+                delay(1200L)
+                try {
+                    val url = URL("$baseUrl/api/status")
+                    val conn = (url.openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 2000
+                        readTimeout = 2000
+                    }
+                    if (conn.responseCode == 200) {
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        val json = JSONObject(body)
+                        val oldSeq = _state.value.frameSeq
+                        updateTelemetryFromWifiJson(json)
+                        if (oldSeq.isNotEmpty() && _state.value.frameSeq != oldSeq) {
+                            readScreenWifi()
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private suspend fun readScreenWifi() {
+        withContext(Dispatchers.IO) {
+            try {
+                val baseUrl = _state.value.wifiBaseUrl.ifEmpty { "http://192.168.4.1" }
+                _state.value = _state.value.copy(screenProgress = 0.3f)
+                val url = URL("$baseUrl/api/screen")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 4000
+                    readTimeout = 4000
+                }
+                if (conn.responseCode == 200) {
+                    val bytes = conn.inputStream.use { it.readBytes() }
+                    if (bytes.size == 5000) {
+                        _state.value = _state.value.copy(
+                            framebuffer = bytes,
+                            hasValidScreen = true,
+                            screenProgress = 1f
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                log("WiFi screen read error: ${e.message}")
+            } finally {
+                delay(200L)
+                _state.value = _state.value.copy(screenProgress = 0f)
+            }
+        }
+    }
+
     fun manualRefreshScreen() {
+        if (_state.value.isWifiMode) {
+            scope.launch {
+                log("Capturing 200x200 screen over WiFi AP...")
+                readScreenWifi()
+                log("Screen capture complete.")
+            }
+            return
+        }
         scope.launch {
             bleMutex.withLock {
                 log("Capturing 200x200 e-paper screen from Watchy...")
@@ -462,6 +687,18 @@ class WatchyBleManager(private val context: Context) {
     }
 
     fun setWatchyMode(mode: String) {
+        if (_state.value.isWifiMode) {
+            if (mode == "OFF") {
+                scope.launch(Dispatchers.IO) {
+                    try {
+                        val baseUrl = _state.value.wifiBaseUrl.ifEmpty { "http://192.168.4.1" }
+                        URL("$baseUrl/exit").readText()
+                    } catch (_: Exception) {}
+                    disconnectWifi()
+                }
+            }
+            return
+        }
         scope.launch {
             bleMutex.withLock {
                 writeCharString(charTime, "MODE:$mode")
@@ -481,6 +718,24 @@ class WatchyBleManager(private val context: Context) {
     }
 
     fun pressButton(btn: Int) {
+        if (_state.value.isWifiMode) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val baseUrl = _state.value.wifiBaseUrl.ifEmpty { "http://192.168.4.1" }
+                    val conn = (URL("$baseUrl/api/button?btn=$btn").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 3000
+                    }
+                    conn.responseCode
+                    log("Pressed SW$btn on Watchy (WiFi)")
+                    delay(300L)
+                    readScreenWifi()
+                } catch (e: Exception) {
+                    log("Button SW$btn WiFi error: ${e.message}")
+                }
+            }
+            return
+        }
         scope.launch {
             bleMutex.withLock {
                 writeCharString(charTime, "BTN:$btn")
@@ -493,11 +748,33 @@ class WatchyBleManager(private val context: Context) {
     }
 
     fun syncPhoneTime() {
+        val epochSec = System.currentTimeMillis() / 1000L
+        val tzId = TimeZone.getDefault().id ?: ""
+        val payload = if (tzId.isNotEmpty()) "$epochSec,$tzId" else "$epochSec"
+
+        if (_state.value.isWifiMode) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val baseUrl = _state.value.wifiBaseUrl.ifEmpty { "http://192.168.4.1" }
+                    val conn = (URL("$baseUrl/api/time").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        doOutput = true
+                        connectTimeout = 3000
+                        outputStream.use { it.write(payload.toByteArray(StandardCharsets.UTF_8)) }
+                    }
+                    conn.responseCode
+                    log("Synced phone time over WiFi: $payload")
+                    delay(200L)
+                    readScreenWifi()
+                } catch (e: Exception) {
+                    log("WiFi time sync error: ${e.message}")
+                }
+            }
+            return
+        }
+
         scope.launch {
             bleMutex.withLock {
-                val epochSec = System.currentTimeMillis() / 1000L
-                val tzId = TimeZone.getDefault().id ?: ""
-                val payload = if (tzId.isNotEmpty()) "$epochSec,$tzId" else "$epochSec"
                 writeCharString(charTime, payload)
                 log("Synced phone time & timezone: $payload")
                 delay(280L)
@@ -531,6 +808,27 @@ class WatchyBleManager(private val context: Context) {
     }
 
     fun pushWeatherPayload(payload: String, locPayload: String) {
+        if (_state.value.isWifiMode) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val baseUrl = _state.value.wifiBaseUrl.ifEmpty { "http://192.168.4.1" }
+                    val conn = (URL("$baseUrl/api/weather").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        doOutput = true
+                        connectTimeout = 3000
+                        outputStream.use { it.write(payload.toByteArray(StandardCharsets.UTF_8)) }
+                    }
+                    conn.responseCode
+                    log("Pushed Weather over WiFi: $payload")
+                    delay(200L)
+                    readScreenWifi()
+                } catch (e: Exception) {
+                    log("WiFi weather push error: ${e.message}")
+                }
+            }
+            return
+        }
+
         scope.launch {
             bleMutex.withLock {
                 writeCharString(charLoc, locPayload)
@@ -539,6 +837,67 @@ class WatchyBleManager(private val context: Context) {
                 delay(280L)
                 readTelemetryUnlocked()
                 readScreenUnlocked()
+            }
+        }
+    }
+
+    private fun autoFetchAndPushWeatherUnlocked() {
+        scope.launch(Dispatchers.IO) {
+            try {
+                // Determine coordinates: state -> GPS -> Watchy's saved -> default Helsinki
+                var lat = _state.value.latitude.toDoubleOrNull()
+                var lon = _state.value.longitude.toDoubleOrNull()
+                if (lat == null || lon == null) {
+                    try {
+                        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                        val loc = lm?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                            ?: lm?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                            ?: lm?.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+                        if (loc != null) {
+                            lat = loc.latitude
+                            lon = loc.longitude
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (lat == null || lon == null) {
+                    lat = 60.1699
+                    lon = 24.9384
+                }
+
+                log("Auto-fetching Open-Meteo weather on phone for $lat, $lon...")
+                val urlStr = String.format(
+                    Locale.US,
+                    "https://api.open-meteo.com/v1/forecast?latitude=%.6f&longitude=%.6f&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m&wind_speed_unit=ms",
+                    lat, lon
+                )
+                val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 7000
+                    readTimeout = 7000
+                }
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val root = JSONObject(body)
+                val elev = root.optDouble("elevation", 0.0).roundToInt()
+                val current = root.getJSONObject("current")
+                val tempC = current.getDouble("temperature_2m").roundToInt()
+                val feelsC = current.getDouble("apparent_temperature").roundToInt()
+                val code = current.getInt("weather_code")
+                val hum = current.getDouble("relative_humidity_2m").roundToInt()
+                val windMs = String.format(Locale.US, "%.1f", current.getDouble("wind_speed_10m"))
+                val pres = current.getDouble("surface_pressure").roundToInt()
+
+                val weatherPayload = "$tempC,$feelsC,$code,$hum,$windMs,$pres,$elev"
+                val locPayload = String.format(Locale.US, "%.6f,%.6f", lat, lon)
+
+                bleMutex.withLock {
+                    writeCharString(charLoc, locPayload)
+                    writeCharString(charWeat, weatherPayload)
+                    log("Auto-pushed fresh weather to Watchy: $tempC°C, code $code, wind $windMs m/s")
+                    delay(300L)
+                    readTelemetryUnlocked()
+                    readScreenUnlocked()
+                }
+            } catch (e: Exception) {
+                log("Auto weather fetch failed: ${e.message}")
             }
         }
     }

@@ -244,6 +244,7 @@ RTC_DATA_ATTR struct WeatherGSR final {
      float WindSpeed;      /* "wind" "speed" from weather info */
      int WindDirection;    /* "wind" "deg" from weather info */
      float WindGust;       /* "wind" "gust" from weather info */
+     float Elevation;      /* "elevation" from weather info */
    } Weather;
    time_t LastCall;        /* Last call to open-meteo.com + Honor ## minute delay */
    double LastLat;         /* Last Latitude  ^^^ */
@@ -726,8 +727,11 @@ void WatchyGSR::tick() {
 /* WATCHY AP */
 
     if (GSRWiFi.Requests == 0 && GSRWiFi.Slow == 0 && !inBrownOut() && WatchyAPOn && !OTAUpdate){
+        if (WiFi.getMode() == WIFI_AP) {
+            server.handleClient();
+        }
     switch (Menu.SubItem){
-        case 0: // The AP is now off.
+        case 0: // The AP is now off or menu closed while AP remains active.
         break;
         case 1: // Turn on AP.
         if (WiFi.getMode() != WIFI_AP || (millis() - OTATimer > 4000 && OTATry < 3)){
@@ -753,12 +757,7 @@ void WatchyGSR::tick() {
             Menu.SubItem = 0;
             break;
             }
-            server.handleClient();
-            /*if (Server.handleRequests()){
-            Menu.SubItem = 0;
-            break;
-            }*/
-            if (millis() - APLoop > 8000){
+            if (GuiMode == GSR_MENUON && Menu.Item == GSR_MENU_WIFI && (millis() - APLoop > 8000)){
             Menu.SubItem = roller(Menu.SubItem + 1, 2, 4);
             UpdateDisp |= Showing();
             APLoop=millis();
@@ -973,6 +972,7 @@ void WatchyGSR::StartWeb(){
         }
       }
     });
+    InsertAddWeb();
     RefreshCPU(GSR_CPUMAX);
     server.begin();
 }
@@ -1112,6 +1112,9 @@ void WatchyGSR::drawMenu(){
             break;
         case GSR_MENU_UTILS_BLE:
             O = "BLE Remote";
+            break;
+        case GSR_MENU_UTILS_WIFI:
+            O = "Watchy Connect";
             break;
         case GSR_MENU_OPTIONS:
             O = LGSR.GetID(Options.LanguageID,7);
@@ -2376,6 +2379,16 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
                   else if (Menu.Item == GSR_MENU_UTILS_MED) { GuiMode = GSR_WATCHON; InsertHandleMedInfo(); UpdateDisp = true; SetTurbo(); }
                   else if (Menu.Item == GSR_MENU_UTILS_WEAT) { GuiMode = GSR_WATCHON; InsertHandleWeather(); UpdateDisp = true; SetTurbo(); }
                   else if (Menu.Item == GSR_MENU_UTILS_BLE) { GuiMode = GSR_WATCHON; InsertHandleBleRemote(); UpdateDisp = true; SetTurbo(); }
+                  else if (Menu.Item == GSR_MENU_UTILS_WIFI) {
+                      Menu.Item = GSR_MENU_WIFI;
+                      Menu.Style = GSR_MENU_INOPTIONS;
+                      Menu.SubItem = 1;
+                      WatchyAPOn = true;
+                      ResetEndOTA();
+                      DoHaptic = true;
+                      UpdateDisp = true;
+                      SetTurbo();
+                  }
               }else if (Menu.Item == GSR_MENU_OPTIONS && Menu.SubItem == 0){  // Options
                   Menu.Item = GSR_MENU_STYL;
                   Menu.Style = GSR_MENU_INOPTIONS;
@@ -2823,14 +2836,12 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
               DoHaptic = true;
               UpdateDisp = true;  // Quick Update.
               SetTurbo();
-          }else if (Menu.Item == GSR_MENU_WIFI && Menu.SubItem > 0){
-              if (Menu.SubItem < 5){
-                  EndOTA(3);
-                  Menu.SubItem = 5;
-                  DoHaptic = true;
-                  UpdateDisp = true;  // Quick Update.
-                  SetTurbo();
-              }
+          }else if (Menu.Item == GSR_MENU_WIFI){
+              stopWatchyAP();
+              CloseMenu();
+              DoHaptic = true;
+              UpdateDisp = true;  // Quick Update.
+              SetTurbo();
           }else if (Menu.Item == GSR_MENU_SUSP && Menu.SubItem > 0){
               Menu.SubItem = 0; Options.NeedsSaving = true;
           }else if ((Menu.Item == GSR_MENU_OTAU || Menu.Item == GSR_MENU_OTAM) && Menu.SubItem > 0){
@@ -3223,7 +3234,7 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
               }else if (Menu.Style == GSR_MENU_INTIMERS){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_TIMEDN, GSR_MENU_TIMEUP);
               }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_BLE);
+                  Menu.Item = roller(Menu.Item - 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_WIFI);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item - 1, GSR_MENU_SCRN, GSR_MENU_UNVS);
               }else{
@@ -3557,7 +3568,7 @@ void WatchyGSR::handleMenuButton(uint8_t Pressed){
               }else if (Menu.Style == GSR_MENU_INTIMERS){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_TIMEDN, GSR_MENU_TIMEUP);
               }else if (Menu.Style == GSR_MENU_INUTILS){
-                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_BLE);
+                  Menu.Item = roller(Menu.Item + 1, GSR_MENU_UTILS_BTN, GSR_MENU_UTILS_WIFI);
               }else if (Menu.Style == GSR_MENU_INTROUBLE){
                   Menu.Item = roller(Menu.Item + 1, GSR_MENU_SCRN, GSR_MENU_UNVS);
               }else{
@@ -4922,9 +4933,26 @@ void WatchyGSR::KeepDisplayAwake() { Darkness.Last = millis(); }
 
 void WatchyGSR::DisplaySleep(){ if (!Updates.Init) { Updates.Init = true; display.hibernate(); } }
 
-bool WatchyGSR::SafeToDraw() { return (!(OTAUpdate || WatchyAPOn || (Menu.Item == GSR_MENU_TOFF && Menu.SubItem > 0 && Menu.SubItem < 6))); }
+bool WatchyGSR::SafeToDraw() { return (!(OTAUpdate || (Menu.Item == GSR_MENU_TOFF && Menu.SubItem > 0 && Menu.SubItem < 6))); }
 bool WatchyGSR::NoMenu() { return (GuiMode == GSR_WATCHON || GuiMode == GSR_GAMEON); };
 bool WatchyGSR::InGame() { return (GuiMode == GSR_GAMEON); }
+
+void WatchyGSR::stopWatchyAP() {
+    if (WatchyAPOn) {
+        server.stop();
+        endWiFi();
+        setStatus("");
+        WatchyAPOn = false;
+        OTAEnd = false;
+        ResetEndOTA();
+        UpdateDisp = true;
+        Updates.Full = true;
+    }
+}
+
+bool WatchyGSR::isWatchyAPOn() const {
+    return WatchyAPOn;
+}
 
 /* Weather Functions */
 
@@ -5033,16 +5061,23 @@ void WatchyGSR::SetWeatherLocationFromBLE(double lat, double lon) {
     RecordSettings();
 }
 
-void WatchyGSR::SetWeatherFromBLE(float tempC, float feelsLikeC, uint16_t id, uint8_t humidity, float windKmh, uint16_t pressure) {
+void WatchyGSR::SetWeatherFromBLE(float tempC, float feelsLikeC, uint16_t id, uint8_t humidity, float windKmh, uint16_t pressure, float elevation) {
     WeatherData.Weather.Temperature.Current = tempC;
     WeatherData.Weather.Temperature.FeelsLike = feelsLikeC;
     WeatherData.Weather.ID = id;
     WeatherData.Weather.Humidity = humidity;
     WeatherData.Weather.WindSpeed = windKmh;
     WeatherData.Weather.Pressure = pressure;
+    WeatherData.Weather.Elevation = elevation;
     WeatherData.goneStale = WatchTime.UTC_RAW;
     WeatherData.Ready = true;
     UpdateDisp |= Showing();
+}
+
+int WatchyGSR::GetWeatherElevation() {
+    float E = WeatherData.Weather.Elevation;
+    if (!WeatherData.Metric) E *= 3.28084f; // feet
+    return (int)round(E);
 }
 
 /* API here for Battery Levels */
@@ -5210,6 +5245,8 @@ void WatchyGSR::ProcessWeather(){
                     WeatherData.Weather.SunSet = getISO8601(S);
                     S = CleanString(root["hourly"]["visibility"]);
                     WeatherData.Weather.Visibility = uint32_t(S.toInt());
+                    S = CleanString(root["elevation"]);
+                    WeatherData.Weather.Elevation = S.toFloat();
                     WeatherData.goneStale = WatchTime.UTC_RAW; // Add the current value time onto this.
                     WeatherData.Ready = true;
                 }
@@ -5417,7 +5454,7 @@ void WatchyGSR::initWatchFaceStyle(){
   Design.Status.WIFIx = 5;
   Design.Status.WIFIy = 193;
   Design.Status.BATTx = 155;
-  Design.Status.BATTy = 178;
+  Design.Status.BATTy = 193;
   Design.Status.Inverted = false;
   Design.Status.BatteryInverted = false;
    if (DefaultWatchStyles) { if (Options.WatchFaceStyle > BasicWatchStyles && Options.WatchFaceStyle != 255) { if (WatchStyles.AddOn[Options.WatchFaceStyle] == nullptr) InsertInitWatchStyle(Options.WatchFaceStyle); else WatchStyles.AddOn[Options.WatchFaceStyle]->InsertInitWatchStyle(Options.WatchFaceStyle); return; } }
