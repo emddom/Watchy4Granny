@@ -100,6 +100,10 @@ void WatchfaceState::enter(StateMachine* sm) {
 }
 
 void WatchfaceState::execute(StateMachine* sm) {
+    UiStateMachine* usm = (UiStateMachine*)sm;
+    if (usm && usm->watchy && usm->watchy->NoMenu() && !isSuspended) {
+        usm->watchy->syncMinuteRollover();
+    }
 }
 
 void WatchfaceState::exit(StateMachine* sm) {

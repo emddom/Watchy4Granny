@@ -331,6 +331,7 @@ class WatchyBleManager(private val context: Context) {
             scope.launch {
                 bleMutex.withLock {
                     readTelemetryUnlocked()
+                    syncPhoneTimeUnlocked()
                     // If Watchy is in BLE remote mode (mode == 1), switch it to WATCH mode
                     if (watchMode == "1") {
                         writeCharString(charTime, "MODE:WATCH")
@@ -747,6 +748,15 @@ class WatchyBleManager(private val context: Context) {
         }
     }
 
+    private suspend fun syncPhoneTimeUnlocked() {
+        val ch = charTime ?: return
+        val epochSec = System.currentTimeMillis() / 1000L
+        val tzId = TimeZone.getDefault().id ?: ""
+        val payload = if (tzId.isNotEmpty()) "$epochSec,$tzId" else "$epochSec"
+        writeCharString(ch, payload)
+        log("Synced phone time & timezone via BLE: $payload")
+    }
+
     fun syncPhoneTime() {
         val epochSec = System.currentTimeMillis() / 1000L
         val tzId = TimeZone.getDefault().id ?: ""
@@ -775,8 +785,7 @@ class WatchyBleManager(private val context: Context) {
 
         scope.launch {
             bleMutex.withLock {
-                writeCharString(charTime, payload)
-                log("Synced phone time & timezone: $payload")
+                syncPhoneTimeUnlocked()
                 delay(280L)
                 readTelemetryUnlocked()
                 readScreenUnlocked()
@@ -891,7 +900,8 @@ class WatchyBleManager(private val context: Context) {
                 bleMutex.withLock {
                     writeCharString(charLoc, locPayload)
                     writeCharString(charWeat, weatherPayload)
-                    log("Auto-pushed fresh weather to Watchy: $tempC°C, code $code, wind $windMs m/s")
+                    syncPhoneTimeUnlocked()
+                    log("Auto-pushed fresh weather & time to Watchy: $tempC°C, code $code, wind $windMs m/s")
                     delay(300L)
                     readTelemetryUnlocked()
                     readScreenUnlocked()

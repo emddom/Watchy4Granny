@@ -532,6 +532,13 @@
             await charTime.writeValue(enc.encode('MODE:WATCH'));
             await new Promise(r => setTimeout(r, 280));
           }
+          // Auto-sync local time and timezone via BLE
+          const epochSec = Math.floor(Date.now() / 1000);
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+          const payload = tz ? `${epochSec},${tz}` : `${epochSec}`;
+          await charTime.writeValue(enc.encode(payload));
+          log(`Auto-synced time to Watchy: ${payload}`);
+          await new Promise(r => setTimeout(r, 200));
           await readScreenUnlocked();
         });
 

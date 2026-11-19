@@ -3,6 +3,23 @@
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 
+struct NTPUse final {
+    uint8_t State;
+    uint8_t Wait;
+    uint8_t Pause;
+    unsigned long tWait;
+    time_t Last;
+    bool TimeZone;
+    bool UpdateUTC;
+    bool AutoSync;
+    uint8_t SyncHour;
+    uint8_t SyncMins;
+    uint8_t SyncDays;
+    time_t TravelTemp;
+    char fromWeb[64];
+};
+extern RTC_DATA_ATTR struct NTPUse NTPData;
+
 RTC_DATA_ATTR bool callingForHelp = false;
 RTC_DATA_ATTR bool helpRequested = false;
 RTC_DATA_ATTR bool wifiFailed = false;
@@ -10,6 +27,7 @@ RTC_DATA_ATTR bool showingMedInfo = false;
 RTC_DATA_ATTR bool isSuspended = false;
 RTC_DATA_ATTR bool showingButtons = false;
 RTC_DATA_ATTR bool showingWeather = false;
+RTC_DATA_ATTR int8_t lastDrawnMinute = -1;
 bool showingBleRemote = false;
 bool bleMirrorMode = false;
 volatile uint8_t pendingBleMode = 0;
@@ -275,6 +293,7 @@ class WatchyBleServerCallbacks : public NimBLEServerCallbacks {
 
 void OverrideGSR::InsertDefaults() {
     SetWeatherScale(true); // Default to Metric (Celsius, m/s)
+    NTPData.AutoSync = true; // Default auto-sync enabled (using BLE with phone app)
 }
 
 void OverrideGSR::InsertInitWatchStyle(uint8_t StyleID) {
@@ -310,6 +329,10 @@ void OverrideGSR::InsertWiFiEnding() {
   }
 }
 
+static bool isBleSyncToday() {
+    return !WatchyGSR::SRTC.checkingDrift(WatchTime.ESPRTC) && NTPData.AutoSync && (NTPData.SyncDays & (1 << WatchTime.Local.Wday));
+}
+
 void OverrideGSR::InsertOnMinute() {
   float voltage = WatchyGSR::getBatteryVoltage();
   int percentage = 0;
@@ -320,6 +343,17 @@ void OverrideGSR::InsertOnMinute() {
   if (percentage <= GetSuspendLevel() && GetBatteryState() != 3 && !isSuspended) {
       suspendTime = WatchTime.UTC_RAW;
       uiSM.setState(&suspendState);
+  }
+
+  // Daily Auto-Sync via BLE with Companion Phone App (replaces WiFi NTP)
+  if (isBleSyncToday() && WatchTime.Local.Hour == NTPData.SyncHour && WatchTime.Local.Minute == NTPData.SyncMins && WatchTime.UTC_RAW - NTPData.Last > 59) {
+      NTPData.State = 0;
+      NTPData.Last = WatchTime.UTC_RAW;
+      endWiFi();
+      startBleHid();
+      extendBleKeepAlive(45000); // 45-second advertising window for phone app
+      requestBleWeather();       // Request both fresh time & weather push
+      UpdateScreen();
   }
 
   // Clear the messages when the minute changes so the normal clock returns
@@ -346,12 +380,27 @@ bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
         KeepDisplayAwake();
         return true;
     }
-    if (bleConnected && millis() < bleKeepAliveUntil) {
+    if (millis() < bleKeepAliveUntil) {
         KeepDisplayAwake();
+        return true;
+    }
+    // Intercept manual NTP sync requests from menu (Menu -> Options -> Sync Watchy)
+    if (NTPData.State > 0 && !callingForHelp) {
+        NTPData.State = 0;
+        NTPData.Last = WatchTime.UTC_RAW;
+        endWiFi();
+        startBleHid();
+        extendBleKeepAlive(45000);
+        requestBleWeather();
+        UpdateScreen();
         return true;
     }
     if (isSuspended && GetBatteryState() == 3) {
         return true; // Keep awake when charging to animate blinking character
+    }
+    // Ensure display is drawn if the minute rolled over before sleeping
+    if (NoMenu() && !isSuspended && lastDrawnMinute >= 0 && WatchTime.Local.Minute != lastDrawnMinute) {
+        return true;
     }
     return false;
 }
@@ -655,6 +704,16 @@ void OverrideGSR::drawWatchFace() {
 
 void OverrideGSR::InsertPostDraw() {
     screenFrameSeq++;
+    lastDrawnMinute = WatchTime.Local.Minute;
+}
+
+void OverrideGSR::syncMinuteRollover() {
+    ClockSeconds();
+    if (lastDrawnMinute >= 0 && WatchTime.Local.Minute != lastDrawnMinute) {
+        WatchTime.NewMinute = true;
+        InsertOnMinute();
+        UpdateScreen(false); // partial refresh for new minute
+    }
 }
 
 bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &Refresh) {

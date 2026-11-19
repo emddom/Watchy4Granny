@@ -27,6 +27,7 @@ extern RTC_DATA_ATTR bool showingMedInfo;
 extern RTC_DATA_ATTR bool isSuspended;
 extern RTC_DATA_ATTR bool showingButtons;
 extern RTC_DATA_ATTR bool showingWeather;
+extern RTC_DATA_ATTR int8_t lastDrawnMinute;
 extern bool showingBleRemote;
 extern bool bleMirrorMode;
 extern volatile uint8_t pendingBleMode;
@@ -57,6 +58,7 @@ class OverrideGSR : public WatchyGSR {
     void startBleHid();
     void stopBleHid();
     void requestBleWeather();
+    void syncMinuteRollover();
     void sendBleMediaKey(uint8_t mask, const char* label);
     bool isBleRunning();
     bool isBleConnected() const;
