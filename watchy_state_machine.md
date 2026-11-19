@@ -144,6 +144,11 @@ stateDiagram-v2
 
 ### UiStateMachine Summary
 * **WatchfaceState**: Default idle mode showing the time, date, step count, lower-left Bluetooth badge (`[ᛒ ✓]` / `[ᛒ ×]`), and lower-right battery/charging indicator (horizontally aligned at baseline `y = 195`).
+  * **Minute Rollover & Refresh Guarantee**: Tracks `lastDrawnMinute` in `RTC_DATA_ATTR`.
+    * When awake (e.g. BLE connected, charging, or turbo), `WatchfaceState::execute()` actively calls `watchy->syncMinuteRollover()`, which reads the RTC via `ClockSeconds()` and performs a fast partial refresh the exact moment the minute increments.
+    * When waking from deep sleep on RTC minute alarms (`ESP_SLEEP_WAKEUP_EXT0`), `setup()` detects `WatchTime.Local.Minute != lastDrawnMinute`, queuing `InsertOnMinute()` and `UpdateScreen(false)`.
+    * `InsertNeedAwake()` prevents returning to deep sleep until the watch face finishes drawing the new minute.
+  * **Daily BLE Auto-Sync**: At scheduled sync time (`NTPData.SyncHour:SyncMins`), intercepts WiFi NTP and starts a 45-second BLE advertising window for the companion phone app to push fresh time and weather data.
 * **MenuState**: Native `WatchyGSR` menu system (`Steps`, `Alarms`, `Timers`, `Game`, `Options`, and custom `Utilities` at the root level).
 * **ShowButtonsState**: Triggered via `Menu -> Utilities -> Show Buttons`. Displays an overlay mapping `SW1`–`SW4` physical buttons to their logical functions. Ignores button inputs for the first 1 second to prevent bouncing from menu selection, then dismisses on any button press or a 10s timeout.
 * **MedInfoState**: Triggered via `Menu -> Utilities -> Med Info`. Displays emergency medical info (Name, ID, Allergies, Birthdate). Exits on `SW2` or 20s inactivity timeout.

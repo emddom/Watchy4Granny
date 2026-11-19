@@ -75,6 +75,11 @@ To prevent accidental button presses while wearing the watch, all assistive feat
 
 ## 4. Inactivity Timeouts & Power Optimization
 
+* **Minute-by-Minute Screen Updates**:
+  * Watchy automatically wakes from deep sleep on the exact second the minute changes via its hardware RTC alarm (`ESP_SLEEP_WAKEUP_EXT0`), refreshes the e-paper screen via partial update, and returns to sleep.
+  * If the watch is awake (e.g., actively connected to the Android Digital Twin via BLE or plugged in charging), the watch face automatically refreshes on the exact second of every minute rollover.
+* **Daily BLE Auto-Sync & Time Synchronization**:
+  * Rather than relying on WiFi NTP, Watchy schedules a daily BLE advertising window (`NTPData.SyncHour:SyncMins`). Whenever the Android Digital Twin or Web Bluetooth connects, it automatically pushes the phone's exact epoch time and timezone to Watchy without requiring user action.
 * **Weather Screen Lifecycle & Sync**:
   * While a weather refresh is actively ongoing with the phone connected, the screen remains alive.
   * Once the update is received, the `*` asterisk turns off immediately, and Watchy holds the updated weather screen for **5 seconds** so you can view the new data before automatically returning to the Watch Face.
