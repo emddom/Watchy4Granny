@@ -83,6 +83,7 @@ To prevent accidental button presses while wearing the watch, all assistive feat
 * **Weather Screen Lifecycle & Sync**:
   * While a weather refresh is actively ongoing with the phone connected, the screen remains alive.
   * Once the update is received, the `*` asterisk turns off immediately, and Watchy holds the updated weather screen for **5 seconds** so you can view the new data before automatically returning to the Watch Face.
+  * **Suppressed Disconnected WiFi Polling**: If the companion Digital Twin is not connected, all automatic background WiFi weather polling is disabled (`Interval = 0`). This prevents Watchy from staying awake in failing WiFi retry loops that previously caused 15-minute display update freezes.
 * **Digital Twin Screen Sync Grace Period**:
   * When returning to the Watch Face with BLE connected, Watchy extends the connection and keeps the display awake while the Digital Twin polls status and downloads the 200x200 screen buffer chunks (`SCR:offset,len`). Once the screen transfer finishes and the grace period expires, Watchy cleanly deep-sleeps and turns off BLE.
 * **Secondary Screens (20 Seconds)**: All secondary screens (`Med Info`, `Find Phone`, `Show Buttons`, and idle `Weather`/`BLE Remote` when disconnected) automatically return to the Watch Face after 20 seconds of inactivity.

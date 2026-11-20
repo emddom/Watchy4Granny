@@ -294,6 +294,13 @@ class WatchyBleServerCallbacks : public NimBLEServerCallbacks {
 void OverrideGSR::InsertDefaults() {
     SetWeatherScale(true); // Default to Metric (Celsius, m/s)
     NTPData.AutoSync = true; // Default auto-sync enabled (using BLE with phone app)
+    SetWeatherInterval(0);
+    CancelWeather();
+}
+
+void OverrideGSR::InsertPost() {
+    SetWeatherInterval(0); // Disable automatic background WiFi weather polling
+    CancelWeather();
 }
 
 void OverrideGSR::InsertInitWatchStyle(uint8_t StyleID) {
@@ -394,6 +401,18 @@ bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
         requestBleWeather();
         UpdateScreen();
         return true;
+    }
+    // Intercept WiFi weather polling - disable if Twin is not connected
+    if (IsWeatherLoading() && !callingForHelp) {
+        if (!isBleConnected()) {
+            CancelWeather();
+            SetWeatherInterval(0);
+        } else {
+            CancelWeather();
+            requestBleWeather();
+        }
+        UpdateScreen();
+        return false;
     }
     if (isSuspended && GetBatteryState() == 3) {
         return true; // Keep awake when charging to animate blinking character
@@ -709,6 +728,9 @@ void OverrideGSR::InsertPostDraw() {
 
 void OverrideGSR::syncMinuteRollover() {
     ClockSeconds();
+    if (!isBleConnected()) {
+        SuppressWifiWeather();
+    }
     if (lastDrawnMinute >= 0 && WatchTime.Local.Minute != lastDrawnMinute) {
         WatchTime.NewMinute = true;
         InsertOnMinute();

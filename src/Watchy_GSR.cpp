@@ -5074,6 +5074,35 @@ void WatchyGSR::SetWeatherFromBLE(float tempC, float feelsLikeC, uint16_t id, ui
     UpdateDisp |= Showing();
 }
 
+void WatchyGSR::CancelWeather() {
+    WeatherData.State = 0;
+    WeatherData.Wait = 0;
+    WeatherData.Pause = 0;
+    WeatherData.LastCall = 0;
+    endWiFi();
+}
+
+void WatchyGSR::SuppressWifiWeather() {
+    WeatherData.LastCall = 0;
+    if (WeatherData.State > 0) {
+        WeatherData.State = 0;
+        WeatherData.Wait = 0;
+        WeatherData.Pause = 0;
+        endWiFi();
+    }
+}
+
+uint8_t WatchyGSR::GetWeatherInterval() {
+    return WeatherData.Interval;
+}
+
+void WatchyGSR::SetWeatherInterval(uint8_t interval) {
+    WeatherData.Interval = interval;
+    if (interval == 0) {
+        WeatherData.LastCall = 0;
+    }
+}
+
 int WatchyGSR::GetWeatherElevation() {
     float E = WeatherData.Weather.Elevation;
     if (!WeatherData.Metric) E *= 3.28084f; // feet

@@ -176,6 +176,10 @@ class WatchyGSR{
         virtual void SetLocalTimeFromBLE(int year, int month, int day, int hour, int minute, int second) final;
         virtual void SetWeatherLocationFromBLE(double lat, double lon) final;
         virtual void SetWeatherFromBLE(float tempC, float feelsLikeC, uint16_t id, uint8_t humidity, float windKmh, uint16_t pressure, float elevation = 0) final;
+        virtual void CancelWeather() final;
+        virtual void SuppressWifiWeather() final;
+        virtual uint8_t GetWeatherInterval() final;
+        virtual void SetWeatherInterval(uint8_t interval) final;
         virtual float getLowBattery(bool useCritical = false) final;
         virtual float getLowBatteryRadio() final;
         virtual String getCurrentNTPServer() final;

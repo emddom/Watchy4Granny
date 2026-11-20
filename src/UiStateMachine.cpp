@@ -102,6 +102,10 @@ void WatchfaceState::enter(StateMachine* sm) {
 void WatchfaceState::execute(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     if (usm && usm->watchy && usm->watchy->NoMenu() && !isSuspended) {
+        if (!usm->watchy->isBleConnected() && usm->watchy->IsWeatherLoading()) {
+            usm->watchy->CancelWeather();
+            usm->watchy->SetWeatherInterval(0);
+        }
         usm->watchy->syncMinuteRollover();
     }
 }
