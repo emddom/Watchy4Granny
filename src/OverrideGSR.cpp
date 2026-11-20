@@ -418,7 +418,7 @@ bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
         return true; // Keep awake when charging to animate blinking character
     }
     // Ensure display is drawn if the minute rolled over before sleeping
-    if (NoMenu() && !isSuspended && lastDrawnMinute >= 0 && WatchTime.Local.Minute != lastDrawnMinute) {
+    if (NoMenu() && !isSuspended && (lastDrawnMinute < 0 || WatchTime.Local.Minute != lastDrawnMinute)) {
         return true;
     }
     return false;
@@ -731,10 +731,12 @@ void OverrideGSR::syncMinuteRollover() {
     if (!isBleConnected()) {
         SuppressWifiWeather();
     }
-    if (lastDrawnMinute >= 0 && WatchTime.Local.Minute != lastDrawnMinute) {
+    if (lastDrawnMinute < 0 || WatchTime.Local.Minute != lastDrawnMinute) {
         WatchTime.NewMinute = true;
         InsertOnMinute();
-        UpdateScreen(false); // partial refresh for new minute
+        bool doFull = (lastDrawnMinute < 0 || WatchTime.Local.Minute == 0);
+        UpdateScreen(doFull);
+        showWatchFace();
     }
 }
 

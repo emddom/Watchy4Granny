@@ -139,5 +139,28 @@ if 'float Elevation;' not in content:
 # 11. Battery status position alignment (BATTy = 193)
 content = content.replace('Design.Status.BATTy = 178;', 'Design.Status.BATTy = 193;')
 
+# 12. Clear RTC alarm on EXT1 wakeup (button/BMA) as well
+ext1_target = 'case ESP_SLEEP_WAKEUP_EXT1: //button Press, BMA\\n            adcPins();\\n            userWakeup = true;\\n            break;'
+ext1_repl = 'case ESP_SLEEP_WAKEUP_EXT1: //button Press, BMA\\n            adcPins();\\n            userWakeup = true;\\n#ifndef SMALL_RTC3_H\\n            SRTC.clearAlarm();\\n#endif\\n            break;'
+if 'case ESP_SLEEP_WAKEUP_EXT1: //button Press, BMA\n            adcPins();\n            userWakeup = true;\n#ifndef SMALL_RTC3_H\n            SRTC.clearAlarm();' not in content:
+    content = content.replace(
+        'case ESP_SLEEP_WAKEUP_EXT1: //button Press, BMA\n            adcPins();\n            userWakeup = true;\n            break;',
+        'case ESP_SLEEP_WAKEUP_EXT1: //button Press, BMA\n            adcPins();\n            userWakeup = true;\n#ifndef SMALL_RTC3_H\n            SRTC.clearAlarm();\n#endif\n            break;'
+    )
+
+# 13. Always call nextMinuteWake() in deepSleep() to avoid 15/30 min sleep breaks
+content = content.replace('if (DM) SRTC.atMinuteWake(N); else SRTC.nextMinuteWake();', 'SRTC.nextMinuteWake();')
+
+# 14. Always return true in Showing() when on main watch face
+if 'if (GuiMode == GSR_WATCHON) return true;' not in content:
+    content = content.replace(
+        'bool WatchyGSR::Showing() {\\n    bool B = (Updates.Full',
+        'bool WatchyGSR::Showing() {\\n    if (GuiMode == GSR_WATCHON) return true;\\n    bool B = (Updates.Full'
+    )
+    content = content.replace(
+        'bool WatchyGSR::Showing() {\n    bool B = (Updates.Full',
+        'bool WatchyGSR::Showing() {\n    if (GuiMode == GSR_WATCHON) return true;\n    bool B = (Updates.Full'
+    )
+
 with open('src/Watchy_GSR.cpp', 'w') as f:
     f.write(content)

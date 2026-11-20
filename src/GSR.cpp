@@ -13,10 +13,12 @@ void setup(){
       watchy.SuppressWifiWeather();
       watchy.SetWeatherInterval(0);
   }
-  if (lastDrawnMinute >= 0 && WatchTime.Local.Minute != lastDrawnMinute) {
+  if (lastDrawnMinute < 0 || WatchTime.Local.Minute != lastDrawnMinute) {
       WatchTime.NewMinute = true;
       watchy.InsertOnMinute();
-      watchy.UpdateScreen(false);
+      bool doFull = (lastDrawnMinute < 0 || WatchTime.Local.Minute == 0);
+      watchy.UpdateScreen(doFull);
+      watchy.showWatchFace();
   }
   powerSM.handleWakeup();
 }

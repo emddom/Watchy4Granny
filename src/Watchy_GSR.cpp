@@ -417,6 +417,9 @@ void WatchyGSR::init(String datetime){
         case ESP_SLEEP_WAKEUP_EXT1: //button Press, BMA
             adcPins();
             userWakeup = true;
+#ifndef SMALL_RTC3_H
+            SRTC.clearAlarm();
+#endif
             break;
         default: //reset
             if (strcmp(LastBuild, Build) != 0) {
@@ -1685,7 +1688,7 @@ void WatchyGSR::deepSleep(){
   }
   if (Options.NeedsSaving) RecordSettings();
   GoDark(M); DisplaySleep();
-  if (DM) SRTC.atMinuteWake(N); else SRTC.nextMinuteWake();
+  SRTC.nextMinuteWake();
   ForceInputs();
 #ifdef STABLEBMA_H_INCLUDED
   esp_sleep_enable_ext1_wakeup((B ? SBMA.WakeMask() : 0) | GSR_BTN_MASK, (esp_sleep_ext1_wakeup_mode_t)GSR_ESP_WAKEUP); //enable deep sleep wake on button press  ... |ACC_INT_MASK
@@ -4853,6 +4856,7 @@ bool WatchyGSR::DarkWait(){
 }
 
 bool WatchyGSR::Showing() {
+    if (GuiMode == GSR_WATCHON) return true;
     bool B = (Updates.Full || Alarming || SoundHandle != NULL || SoundStart);
     if (Options.SleepStyle > 0){
         B |= (Darkness.Last > 0 && (millis() - Darkness.Last) < (Options.SleepMode * 1000));
