@@ -153,9 +153,10 @@ stateDiagram-v2
 * **ShowButtonsState**: Triggered via `Menu -> Utilities -> Show Buttons`. Displays an overlay mapping `SW1`–`SW4` physical buttons to their logical functions. Ignores button inputs for the first 1 second to prevent bouncing from menu selection, then dismisses on any button press or a 10s timeout.
 * **MedInfoState**: Triggered via `Menu -> Utilities -> Med Info`. Displays emergency medical info (Name, ID, Allergies, Birthdate). Exits on `SW2` or 20s inactivity timeout.
 * **WeatherState**: Triggered via `SW3` direct shortcut or `Menu -> Utilities -> Weather`. Displays the full-screen weather report:
-  * Current temperature + feels-like in small font: e.g. `3°C (-2°C)`.
+  * Condition icon + current temperature + feels-like in small font: e.g. `[icon] 3°C (-2°C)`.
+  * Coordinates: `Lat/Lng: XX.X / YY.Y` (1 decimal digit).
   * Local ground elevation: e.g. `Elevation: 113 m`.
-  * Sky condition, humidity, wind speed (m/s), and barometric pressure.
+  * Relative humidity, wind speed (m/s), and barometric pressure.
   * Initiates BLE weather sync with the Digital Twin; manual refresh with `SW3`; exits on `SW2` or 20s timeout.
 * **BleRemoteState**: Triggered via `SW4` direct shortcut or `Menu -> Utilities -> BLE Remote`. Starts `NimBLE` server (`Watchy4Granny`) exposing both:
   1. **BLE HID Consumer Control**: `Volume Up` (`SW3`), `Volume Down` (`SW4`), `Play/Pause` (`SW1`).

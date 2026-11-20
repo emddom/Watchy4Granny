@@ -58,9 +58,10 @@ To prevent accidental button presses while wearing the watch, all assistive feat
    * **`Find Phone`**: Connects to WiFi and triggers an IFTTT webhook (`find_phone`) to ring your phone (`FINDING PHONE` -> `PHONE PINGED!`). Press **SW2 (Back)** at any time to cancel/exit.
    * **`Med Info`**: Displays emergency identification (Name, ID, Allergies, Birthdate). Press **SW2 (Back)** to return to the Watch Face.
    * **`Weather`**: Displays the dedicated Open-Meteo weather report:
-     * **Temperature**: Shown with "feels like" in small font right next to it: e.g. `3°C (-2°C)`.
+     * **Condition Icon & Temperature**: Weather condition icon displayed before the temperature, with "feels like" in small font right next to it: e.g. `[icon] 3°C (-2°C)`.
+     * **Coordinates**: Displays local coordinates `Lat/Lng` (to 1 decimal digit): e.g. `Lat/Lng: 59.4 / 24.7`.
      * **Elevation**: Displays local ground elevation from Open-Meteo: e.g. `Elevation: 113 m` (or `ft`).
-     * **Details**: Sky condition, relative humidity, wind speed in m/s, and barometric pressure.
+     * **Details**: Relative humidity, wind speed in m/s (or mph), and barometric pressure in hPa.
      * **Sync**: Automatically requests fresh data from the phone/Twin via BLE on entry; press **SW3 (Up)** to refresh manually, or **SW2 (Back)** to return to the Watch Face.
    * **`BLE Remote`**: Starts Bluetooth Low Energy (BLE) advertising as **`Watchy4Granny`** with both:
      1. **BLE HID Media Control**: Pair with `Watchy4Granny` in your phone's Bluetooth settings, then use **SW3 (Up)** for **Volume Up**, **SW4 (Down)** for **Volume Down**, **SW1 (Enter)** for **Play/Pause**, and **SW2 (Back)** to disconnect and return to the Watch Face.

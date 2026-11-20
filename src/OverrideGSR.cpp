@@ -594,21 +594,20 @@ void OverrideGSR::drawWatchFace() {
             String feelsStr = "(" + String(GetWeatherTemperatureFeelsLike()) + (IsMetric() ? " C)" : " F)");
             display.print(feelsStr);
 
-            auto getConditionLabel = [](uint16_t id) -> String {
-                if (id == 0 || id == 800) return "Clear";
-                if (id == 1 || id == 2 || id == 801) return "Partly Cloudy";
-                if (id == 3 || id > 801) return "Overcast";
-                if (id == 45 || id == 48 || (id >= 700 && id < 800)) return "Fog / Mist";
-                if ((id >= 51 && id <= 57) || (id >= 300 && id < 400)) return "Drizzle";
-                if ((id >= 61 && id <= 65) || (id >= 80 && id <= 82) || (id >= 500 && id < 600)) return "Rain";
-                if ((id >= 66 && id <= 77) || id == 85 || id == 86 || (id >= 600 && id < 700)) return "Snow";
-                if (id >= 95 || (id >= 200 && id < 300)) return "Thunderstorm";
-                return "Code " + String(id);
-            };
+            double lat = getWeatherLatitude(true);
+            if (lat == NOLOC || lat == 0.0) lat = getWeatherLatitude(false);
+            double lon = getWeatherLongitude(true);
+            if (lon == NOLOC || lon == 0.0) lon = getWeatherLongitude(false);
 
             display.setFont(&aAntiCorona10pt7b);
             display.setCursor(5, 90);
-            display.print("Sky: " + getConditionLabel(cond));
+            String coordStr = "Lat/Lng: ";
+            if (filterGeo(lat, true) && filterGeo(lon, false) && lat != NOLOC && lon != NOLOC) {
+                coordStr += String(lat, 1) + " / " + String(lon, 1);
+            } else {
+                coordStr += "-- / --";
+            }
+            display.print(coordStr);
 
             display.setCursor(5, 115);
             display.print("Elevation: " + String(GetWeatherElevation()) + (IsMetric() ? " m" : " ft"));
