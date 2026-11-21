@@ -77,7 +77,9 @@ To prevent accidental button presses while wearing the watch, all assistive feat
 ## 4. Inactivity Timeouts & Power Optimization
 
 * **Minute-by-Minute Screen Updates**:
-  * Watchy automatically wakes from deep sleep on the exact second the minute changes via its hardware RTC alarm (`ESP_SLEEP_WAKEUP_EXT0`), refreshes the e-paper screen via partial update, and returns to sleep.
+  * Watchy automatically wakes from deep sleep on the exact second the minute changes via its hardware RTC alarm (`ESP_SLEEP_WAKEUP_EXT0`) using explicit RTC GPIO 27 pad configuration (`rtc_gpio_init`, `rtc_gpio_pullup_en`, `rtc_gpio_pulldown_dis`).
+  * A dual hardware timer backup (`esp_sleep_enable_timer_wakeup` calibrated to 500 ms past minute rollover) guarantees wakeup even if RTC signal margins fluctuate.
+  * On wakeup, Watchy executes a single-pass full e-paper refresh (`Updates.Full = true`) to maintain crisp black/white differential RAM states, clears duplicate minute flags, and immediately returns to deep sleep in ~2 seconds, eliminating screen freezes and 15-minute breaks.
   * If the watch is awake (e.g., actively connected to the Android Digital Twin via BLE or plugged in charging), the watch face automatically refreshes on the exact second of every minute rollover.
 * **Daily BLE Auto-Sync & Time Synchronization**:
   * Rather than relying on WiFi NTP, Watchy schedules a daily BLE advertising window (`NTPData.SyncHour:SyncMins`). Whenever the Android Digital Twin or Web Bluetooth connects, it automatically pushes the phone's exact epoch time and timezone to Watchy without requiring user action.

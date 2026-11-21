@@ -157,7 +157,7 @@
 <ul>
 <li><strong>WatchfaceState</strong>: Default idle mode showing the time, date, step count, lower-left Bluetooth badge (<code>[ᛒ ✓]</code> / <code>[ᛒ ×]</code>), and lower-right battery/charging indicator (horizontally aligned at baseline <code>y = 195</code>).
 <ul>
-<li><strong>Minute Rollover &amp; Refresh Guarantee</strong>: Tracks <code>lastDrawnMinute</code> in <code>RTC_DATA_ATTR</code>. While awake (e.g. BLE connected, charging), <code>WatchfaceState::execute()</code> runs <code>syncMinuteRollover()</code> to perform a partial refresh the exact moment the minute rolls over. When waking from deep sleep on RTC alarms (<code>ESP_SLEEP_WAKEUP_EXT0</code>), <code>setup()</code> detects any minute change and ensures the screen updates before sleeping.</li>
+<li><strong>Minute Rollover &amp; Refresh Guarantee</strong>: Tracks <code>lastDrawnMinute</code> in <code>RTC_DATA_ATTR</code>. Uses explicit RTC GPIO 27 pad configuration (<code>rtc_gpio_init</code>, <code>rtc_gpio_pullup_en</code>) for hardware <code>EXT0</code> wakeups alongside a dual hardware timer backup calibrated to 500ms past rollover. On wake, executes a single-pass full refresh (<code>Updates.Full = true</code>) populating differential RAM, resets minute flags to avoid duplicate ticks, and immediately returns to deep sleep in ~2 seconds, permanently eliminating missed updates and 15-minute breaks.</li>
 <li><strong>Daily BLE Auto-Sync</strong>: Intercepts scheduled daily NTP sync with a 45-second BLE advertising window for the companion phone app to push fresh time and weather data.</li>
 </ul>
 </li>

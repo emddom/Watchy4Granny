@@ -145,9 +145,9 @@ stateDiagram-v2
 ### UiStateMachine Summary
 * **WatchfaceState**: Default idle mode showing the time, date, step count, lower-left Bluetooth badge (`[ᛒ ✓]` / `[ᛒ ×]`), and lower-right battery/charging indicator (horizontally aligned at baseline `y = 195`).
   * **Minute Rollover & Refresh Guarantee**: Tracks `lastDrawnMinute` in `RTC_DATA_ATTR`.
-    * When awake (e.g. BLE connected, charging, or turbo), `WatchfaceState::execute()` actively calls `watchy->syncMinuteRollover()`, which reads the RTC via `ClockSeconds()` and performs a fast partial refresh the exact moment the minute increments.
-    * When waking from deep sleep on RTC minute alarms (`ESP_SLEEP_WAKEUP_EXT0`), `setup()` detects `WatchTime.Local.Minute != lastDrawnMinute`, queuing `InsertOnMinute()` and `UpdateScreen(false)`.
-    * `InsertNeedAwake()` prevents returning to deep sleep until the watch face finishes drawing the new minute.
+    * When awake (e.g. BLE connected, charging, or turbo), `WatchfaceState::execute()` actively calls `watchy->syncMinuteRollover()`, which reads the RTC via `ClockSeconds()` and performs a single full refresh the exact moment the minute increments.
+    * When waking from deep sleep on hardware RTC minute alarms (`ESP_SLEEP_WAKEUP_EXT0`) or dual timer backup (`ESP_SLEEP_WAKEUP_TIMER`), `setup()` detects `WatchTime.Local.Minute != lastDrawnMinute`, triggering `InsertOnMinute()` and executing a single-pass full refresh (`Updates.Full = true`). Duplicate redraw flags are cleared, and the watch returns to deep sleep in ~2 seconds.
+    * In `deepSleep()`, explicit RTC pad configuration (`rtc_gpio_init`, `rtc_gpio_pullup_en`) on GPIO 27 ensures reliable `EXT0` detection alongside a dual hardware timer wakeup calibrated to 500 ms past rollover.
   * **Daily BLE Auto-Sync**: At scheduled sync time (`NTPData.SyncHour:SyncMins`), intercepts WiFi NTP and starts a 45-second BLE advertising window for the companion phone app to push fresh time and weather data.
 * **MenuState**: Native `WatchyGSR` menu system (`Steps`, `Alarms`, `Timers`, `Game`, `Options`, and custom `Utilities` at the root level).
 * **ShowButtonsState**: Triggered via `Menu -> Utilities -> Show Buttons`. Displays an overlay mapping `SW1`–`SW4` physical buttons to their logical functions. Ignores button inputs for the first 1 second to prevent bouncing from menu selection, then dismisses on any button press or a 10s timeout.
