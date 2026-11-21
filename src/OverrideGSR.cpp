@@ -725,6 +725,8 @@ void OverrideGSR::InsertPostDraw() {
     lastDrawnMinute = WatchTime.Local.Minute;
 }
 
+extern bool UpdateDisp;
+
 void OverrideGSR::syncMinuteRollover() {
     ClockSeconds();
     if (!isBleConnected()) {
@@ -733,9 +735,10 @@ void OverrideGSR::syncMinuteRollover() {
     if (lastDrawnMinute < 0 || WatchTime.Local.Minute != lastDrawnMinute) {
         WatchTime.NewMinute = true;
         InsertOnMinute();
-        bool doFull = (lastDrawnMinute < 0 || WatchTime.Local.Minute == 0);
-        UpdateScreen(doFull);
+        UpdateScreen(true);
         showWatchFace();
+        WatchTime.NewMinute = false;
+        UpdateDisp = false;
     }
 }
 

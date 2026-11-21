@@ -413,6 +413,7 @@ void WatchyGSR::init(String datetime){
             CalculateTones();
             AlarmsOn = Alarming;
             UpdateDisp=Showing();
+            Updates.Full = true;
             break;
         case ESP_SLEEP_WAKEUP_EXT1: //button Press, BMA
             adcPins();
@@ -985,6 +986,7 @@ void WatchyGSR::EndOTA(uint8_t Seconds) { OTAOff = millis() + Seconds * 1000; }
 bool WatchyGSR::IsEndOTA() { return (OTAOff > 0 && millis() > OTAOff); }
 void WatchyGSR::ResetEndOTA() { OTAOff = 0; }
 
+extern RTC_DATA_ATTR int8_t lastDrawnMinute;
 void WatchyGSR::showWatchFace(){
   int I;
   bool B = (Battery.Read > getLowBattery(true));
@@ -1688,7 +1690,24 @@ void WatchyGSR::deepSleep(){
   }
   if (Options.NeedsSaving) RecordSettings();
   GoDark(M); DisplaySleep();
+  KeysStop();
+  BrownOutDetect(true);
   SRTC.nextMinuteWake();
+
+  // Explicitly configure RTC GPIO 27 for EXT0 wake-up from deep sleep
+  if (_ssrtc.m_rtc_pin) {
+      rtc_gpio_init((gpio_num_t)_ssrtc.m_rtc_pin);
+      rtc_gpio_set_direction((gpio_num_t)_ssrtc.m_rtc_pin, RTC_GPIO_MODE_INPUT_ONLY);
+      rtc_gpio_pulldown_dis((gpio_num_t)_ssrtc.m_rtc_pin);
+      rtc_gpio_pullup_en((gpio_num_t)_ssrtc.m_rtc_pin);
+      esp_sleep_enable_ext0_wakeup((gpio_num_t)_ssrtc.m_rtc_pin, 0);
+  }
+
+  // Dual wakeup: Also enable internal timer wakeup for the exact seconds remaining until next minute
+  // Wake 500ms after the minute rollover to ensure the RTC minute has advanced
+  uint32_t secRemaining = 60 - (WatchTime.Local.Second % 60);
+  if (secRemaining == 0) secRemaining = 60;
+  esp_sleep_enable_timer_wakeup(((uint64_t)secRemaining * 1000000ULL) + 500000ULL);
   ForceInputs();
 #ifdef STABLEBMA_H_INCLUDED
   esp_sleep_enable_ext1_wakeup((B ? SBMA.WakeMask() : 0) | GSR_BTN_MASK, (esp_sleep_ext1_wakeup_mode_t)GSR_ESP_WAKEUP); //enable deep sleep wake on button press  ... |ACC_INT_MASK
