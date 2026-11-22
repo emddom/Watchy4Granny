@@ -323,6 +323,50 @@
       <button id="btnSaveLoc" onclick="writeLocation()" disabled>Save Location to Watchy</button>
       <button id="btnPushWeather" onclick="fetchAndPushWeather()" disabled>Fetch Weather &amp; Push to Watchy</button>
     </div>
+
+    <!-- Expanded Weather Details Box -->
+    <div id="weatherDetailsBox" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+      <div style="background:#0f172a; border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:10px; font-size:0.85rem; line-height:1.6;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span style="color:var(--muted);">Last Received from Meteo:</span>
+          <span id="weatLastReceived" style="color:var(--accent); font-weight:600; font-family:monospace;">--</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--muted);">Last Pushed to Watchy:</span>
+          <span id="weatLastPushed" style="color:var(--success); font-weight:600; font-family:monospace;">--</span>
+        </div>
+      </div>
+
+      <div style="color:var(--muted); font-size:0.75rem; font-weight:bold; margin-bottom:6px; letter-spacing:0.5px;">PARSED WEATHER DATA</div>
+      <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom:10px;">
+        <div class="stat">
+          <div class="stat-label">Temperature (Feels)</div>
+          <div class="stat-val" id="weatParsedTemp" style="font-size:1rem;">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Condition</div>
+          <div class="stat-val" id="weatParsedCond" style="font-size:1rem;">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Wind / Humidity</div>
+          <div class="stat-val" id="weatParsedWindHum" style="font-size:1rem;">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Pressure / Elevation</div>
+          <div class="stat-val" id="weatParsedPresElev" style="font-size:1rem;">--</div>
+        </div>
+      </div>
+
+      <div style="color:var(--muted); font-size:0.75rem; font-weight:bold; margin-bottom:6px; letter-spacing:0.5px;">WEATHER STRINGS</div>
+      <div style="background:#0f172a; border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:8px; font-family:monospace; font-size:0.82rem;">
+        <div style="color:#64748b; font-size:0.72rem; margin-bottom:3px; text-transform:uppercase;">Watchy Payload String:</div>
+        <div id="weatPayloadStr" style="color:#f1f5f9; word-break:break-all;">--</div>
+      </div>
+      <div style="background:#0f172a; border:1px solid var(--border); border-radius:6px; padding:8px 10px; font-family:monospace; font-size:0.82rem;">
+        <div style="color:#64748b; font-size:0.72rem; margin-bottom:3px; text-transform:uppercase;">Open-Meteo Current JSON:</div>
+        <pre id="weatRawJson" style="color:#f1f5f9; margin:0; white-space:pre-wrap; word-break:break-all; max-height:140px; overflow-y:auto;">--</pre>
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -574,6 +618,9 @@
       const [tempC, feelsC, code, hum, windMs, pres, ready] = wStr.split(',');
       document.getElementById('valWeat').textContent =
         ready === '1' ? `${tempC}°C, ${windMs} m/s` : 'No Data';
+      if (ready === '1' && document.getElementById('weatPayloadStr').textContent === '--') {
+        parseAndDisplayPayload(wStr);
+      }
     }
 
     async function readScreenUnlocked() {
@@ -777,6 +824,89 @@
       });
     }
 
+    function getWeatherCodeDescription(code) {
+      const c = Number(code);
+      switch (c) {
+        case 0: return "Clear sky";
+        case 1: return "Mainly clear";
+        case 2: return "Partly cloudy";
+        case 3: return "Overcast";
+        case 45: case 48: return "Fog";
+        case 51: return "Light drizzle";
+        case 53: return "Moderate drizzle";
+        case 55: return "Dense drizzle";
+        case 56: case 57: return "Freezing drizzle";
+        case 61: return "Slight rain";
+        case 63: return "Moderate rain";
+        case 65: return "Heavy rain";
+        case 66: case 67: return "Freezing rain";
+        case 71: return "Slight snowfall";
+        case 73: return "Moderate snowfall";
+        case 75: return "Heavy snowfall";
+        case 77: return "Snow grains";
+        case 80: case 81: case 82: return "Rain showers";
+        case 85: case 86: return "Snow showers";
+        case 95: return "Thunderstorm";
+        case 96: case 99: return "Thunderstorm with hail";
+        default: return `Code ${code}`;
+      }
+    }
+
+    function formatTimestamp(d = new Date()) {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function updateWeatherDetailsUi({ rawJson, payload, c, elevation, recvTime, pushTime }) {
+      const box = document.getElementById('weatherDetailsBox');
+      if (box) box.style.display = 'block';
+      if (recvTime) document.getElementById('weatLastReceived').textContent = recvTime;
+      if (pushTime) document.getElementById('weatLastPushed').textContent = pushTime;
+      if (payload) document.getElementById('weatPayloadStr').textContent = payload;
+      if (rawJson !== undefined) {
+        document.getElementById('weatRawJson').textContent =
+          typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson, null, 2);
+      }
+      if (c) {
+        const tempC = Math.round(c.temperature_2m);
+        const feelsC = Math.round(c.apparent_temperature);
+        const code = c.weather_code;
+        const codeDesc = getWeatherCodeDescription(code);
+        const hum = Math.round(c.relative_humidity_2m);
+        const wind = (c.wind_speed_10m !== undefined) ? c.wind_speed_10m.toFixed(1) : '--';
+        const pres = Math.round(c.surface_pressure);
+        const elev = Math.round(elevation || 0);
+
+        document.getElementById('weatParsedTemp').textContent = `${tempC}°C (${feelsC}°C)`;
+        document.getElementById('weatParsedCond').textContent = `${codeDesc} (Code ${code})`;
+        document.getElementById('weatParsedWindHum').textContent = `${wind} m/s | ${hum}%`;
+        document.getElementById('weatParsedPresElev').textContent = `${pres} hPa | ${elev} m`;
+      }
+    }
+
+    function parseAndDisplayPayload(payload, pushTime) {
+      if (!payload || payload === '--') return;
+      const parts = payload.split(',');
+      if (parts.length >= 5) {
+        const box = document.getElementById('weatherDetailsBox');
+        if (box) box.style.display = 'block';
+        if (pushTime) document.getElementById('weatLastPushed').textContent = pushTime;
+        document.getElementById('weatPayloadStr').textContent = payload;
+        const tempC = parts[0];
+        const feelsC = parts.length >= 2 ? parts[1] : '--';
+        const code = parts[2];
+        const codeDesc = getWeatherCodeDescription(code);
+        const hum = parts.length >= 4 ? parts[3] : '--';
+        const wind = parts[4];
+        const pres = parts.length >= 6 ? parts[5] : '--';
+        const elev = parts.length >= 7 ? parts[6] : '--';
+        document.getElementById('weatParsedTemp').textContent = `${tempC}°C (${feelsC}°C)`;
+        document.getElementById('weatParsedCond').textContent = `${codeDesc} (Code ${code})`;
+        document.getElementById('weatParsedWindHum').textContent = `${wind} m/s | ${hum}%`;
+        document.getElementById('weatParsedPresElev').textContent = `${pres} hPa | ${elev} m`;
+      }
+    }
+
     async function fetchAndPushWeather() {
       const lat = parseFloat(document.getElementById('inpLat').value);
       const lon = parseFloat(document.getElementById('inpLon').value);
@@ -791,6 +921,7 @@
           const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m&wind_speed_unit=ms`;
           const res = await fetch(url);
           const data = await res.json();
+          const recvTime = formatTimestamp();
           const c = data.current;
           const payload = [
             Math.round(c.temperature_2m),
@@ -803,7 +934,9 @@
           ].join(',');
 
           await fetch(`${wifiBaseUrl}/api/weather`, { method: 'POST', body: payload });
-          log(`Pushed Weather to Watchy via WiFi AP: ${payload}`);
+          const pushTime = formatTimestamp();
+          updateWeatherDetailsUi({ rawJson: c, payload, c, elevation: data.elevation, recvTime, pushTime });
+          log(`Pushed Weather to Watchy via WiFi AP: ${payload} (${getWeatherCodeDescription(c.weather_code)})`);
           await new Promise(r => setTimeout(r, 200));
           await pollWifiStatus();
           await readScreenWifi();
@@ -820,6 +953,7 @@
           const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m&wind_speed_unit=ms`;
           const res = await fetch(url);
           const data = await res.json();
+          const recvTime = formatTimestamp();
           const c = data.current;
           const payload = [
             Math.round(c.temperature_2m),
@@ -831,7 +965,9 @@
             Math.round(data.elevation || 0)
           ].join(',');
           await charWeat.writeValue(enc.encode(payload));
-          log(`Pushed Weather to Watchy: ${payload}`);
+          const pushTime = formatTimestamp();
+          updateWeatherDetailsUi({ rawJson: c, payload, c, elevation: data.elevation, recvTime, pushTime });
+          log(`Pushed Weather to Watchy: ${payload} (${getWeatherCodeDescription(c.weather_code)})`);
           await new Promise(r => setTimeout(r, 250));
           await readTelemetryUnlocked();
           await readScreenUnlocked();

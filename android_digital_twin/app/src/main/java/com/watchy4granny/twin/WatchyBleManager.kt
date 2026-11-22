@@ -40,8 +40,44 @@ data class WatchyTwinUiState(
     val hasValidScreen: Boolean = false,
     val screenProgress: Float = 0f,
     val frameSeq: String = "",
-    val logs: List<String> = listOf("Ready. Connect via BLE (SW4 on Watchy) or WiFi (Watchy Connect).")
+    val logs: List<String> = listOf("Ready. Connect via BLE (SW4 on Watchy) or WiFi (Watchy Connect)."),
+    val weatherRawString: String = "",
+    val weatherPayloadString: String = "",
+    val weatherParsedTemp: String = "",
+    val weatherParsedFeels: String = "",
+    val weatherParsedCondition: String = "",
+    val weatherParsedHumidity: String = "",
+    val weatherParsedWind: String = "",
+    val weatherParsedPressure: String = "",
+    val weatherParsedElevation: String = "",
+    val weatherLastReceivedTime: String = "",
+    val weatherLastPushedTime: String = ""
 )
+
+fun parseWeatherCodeDescription(code: Int): String = when (code) {
+    0 -> "Clear sky"
+    1 -> "Mainly clear"
+    2 -> "Partly cloudy"
+    3 -> "Overcast"
+    45, 48 -> "Fog"
+    51 -> "Light drizzle"
+    53 -> "Moderate drizzle"
+    55 -> "Dense drizzle"
+    56, 57 -> "Freezing drizzle"
+    61 -> "Slight rain"
+    63 -> "Moderate rain"
+    65 -> "Heavy rain"
+    66, 67 -> "Freezing rain"
+    71 -> "Slight snowfall"
+    73 -> "Moderate snowfall"
+    75 -> "Heavy snowfall"
+    77 -> "Snow grains"
+    80, 81, 82 -> "Rain showers"
+    85, 86 -> "Snow showers"
+    95 -> "Thunderstorm"
+    96, 99 -> "Thunderstorm with hail"
+    else -> "Code $code"
+}
 
 @SuppressLint("MissingPermission")
 class WatchyBleManager(private val context: Context) {
@@ -455,12 +491,23 @@ class WatchyBleManager(private val context: Context) {
         }
 
         readCharBytes(charWeat)?.let { bytes ->
-            val wStr = String(bytes, StandardCharsets.UTF_8)
+            val wStr = String(bytes, StandardCharsets.UTF_8).trim()
             val parts = wStr.split(",")
             if (parts.size >= 7) {
                 val ready = parts[6].trim() == "1"
                 val weatherDisplay = if (ready) "${parts[0]}°C, ${parts[4]} m/s" else "No Data"
-                _state.value = _state.value.copy(weatherText = weatherDisplay)
+                val code = parts[2].toIntOrNull() ?: 0
+                val pres = parts[5]
+                _state.value = _state.value.copy(
+                    weatherText = weatherDisplay,
+                    weatherPayloadString = if (_state.value.weatherPayloadString.isEmpty() && ready) wStr else _state.value.weatherPayloadString,
+                    weatherParsedTemp = if (_state.value.weatherParsedTemp.isEmpty() && ready) "${parts[0]}°C" else _state.value.weatherParsedTemp,
+                    weatherParsedFeels = if (_state.value.weatherParsedFeels.isEmpty() && ready && parts.size >= 2) "${parts[1]}°C" else _state.value.weatherParsedFeels,
+                    weatherParsedCondition = if (_state.value.weatherParsedCondition.isEmpty() && ready) "${parseWeatherCodeDescription(code)} (Code $code)" else _state.value.weatherParsedCondition,
+                    weatherParsedHumidity = if (_state.value.weatherParsedHumidity.isEmpty() && ready && parts.size >= 4) "${parts[3]}%" else _state.value.weatherParsedHumidity,
+                    weatherParsedWind = if (_state.value.weatherParsedWind.isEmpty() && ready) "${parts[4]} m/s" else _state.value.weatherParsedWind,
+                    weatherParsedPressure = if (_state.value.weatherParsedPressure.isEmpty() && ready) "$pres hPa" else _state.value.weatherParsedPressure
+                )
             }
         }
     }
@@ -816,7 +863,27 @@ class WatchyBleManager(private val context: Context) {
         }
     }
 
-    fun pushWeatherPayload(payload: String, locPayload: String) {
+    fun pushWeatherPayload(payload: String, locPayload: String, rawJson: String = "") {
+        val pushTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+        val parts = payload.split(",")
+        if (parts.size >= 5) {
+            val code = parts[2].toIntOrNull() ?: 0
+            val elev = if (parts.size >= 7) parts[6] else "--"
+            val pres = if (parts.size >= 6) parts[5] else "--"
+            _state.value = _state.value.copy(
+                weatherPayloadString = payload,
+                weatherRawString = if (rawJson.isNotEmpty()) rawJson else _state.value.weatherRawString,
+                weatherParsedTemp = "${parts[0]}°C",
+                weatherParsedFeels = if (parts.size >= 2) "${parts[1]}°C" else _state.value.weatherParsedFeels,
+                weatherParsedCondition = "${parseWeatherCodeDescription(code)} (Code $code)",
+                weatherParsedHumidity = if (parts.size >= 4) "${parts[3]}%" else _state.value.weatherParsedHumidity,
+                weatherParsedWind = "${parts[4]} m/s",
+                weatherParsedPressure = "$pres hPa",
+                weatherParsedElevation = "$elev m",
+                weatherLastPushedTime = pushTime,
+                weatherText = "${parts[0]}°C, ${parts[4]} m/s"
+            )
+        }
         if (_state.value.isWifiMode) {
             scope.launch(Dispatchers.IO) {
                 try {
@@ -850,30 +917,11 @@ class WatchyBleManager(private val context: Context) {
         }
     }
 
-    private fun autoFetchAndPushWeatherUnlocked() {
+    fun fetchAndPushWeather(lat: Double, lon: Double, auto: Boolean = false) {
         scope.launch(Dispatchers.IO) {
             try {
-                // Determine coordinates: state -> GPS -> Watchy's saved -> default Helsinki
-                var lat = _state.value.latitude.toDoubleOrNull()
-                var lon = _state.value.longitude.toDoubleOrNull()
-                if (lat == null || lon == null) {
-                    try {
-                        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-                        val loc = lm?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                            ?: lm?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                            ?: lm?.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
-                        if (loc != null) {
-                            lat = loc.latitude
-                            lon = loc.longitude
-                        }
-                    } catch (_: Exception) {}
-                }
-                if (lat == null || lon == null) {
-                    lat = 60.1699
-                    lon = 24.9384
-                }
-
-                log("Auto-fetching Open-Meteo weather on phone for $lat, $lon...")
+                val recvTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                log("Fetching Open-Meteo weather on phone for $lat, $lon...")
                 val urlStr = String.format(
                     Locale.US,
                     "https://api.open-meteo.com/v1/forecast?latitude=%.6f&longitude=%.6f&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m&wind_speed_unit=ms",
@@ -887,9 +935,11 @@ class WatchyBleManager(private val context: Context) {
                 val root = JSONObject(body)
                 val elev = root.optDouble("elevation", 0.0).roundToInt()
                 val current = root.getJSONObject("current")
+                val rawJson = current.toString(2)
                 val tempC = current.getDouble("temperature_2m").roundToInt()
                 val feelsC = current.getDouble("apparent_temperature").roundToInt()
                 val code = current.getInt("weather_code")
+                val codeDesc = parseWeatherCodeDescription(code)
                 val hum = current.getDouble("relative_humidity_2m").roundToInt()
                 val windMs = String.format(Locale.US, "%.1f", current.getDouble("wind_speed_10m"))
                 val pres = current.getDouble("surface_pressure").roundToInt()
@@ -897,18 +947,72 @@ class WatchyBleManager(private val context: Context) {
                 val weatherPayload = "$tempC,$feelsC,$code,$hum,$windMs,$pres,$elev"
                 val locPayload = String.format(Locale.US, "%.6f,%.6f", lat, lon)
 
-                bleMutex.withLock {
-                    writeCharString(charLoc, locPayload)
-                    writeCharString(charWeat, weatherPayload)
-                    syncPhoneTimeUnlocked()
-                    log("Auto-pushed fresh weather & time to Watchy: $tempC°C, code $code, wind $windMs m/s")
-                    delay(300L)
-                    readTelemetryUnlocked()
-                    readScreenUnlocked()
+                _state.value = _state.value.copy(
+                    weatherRawString = rawJson,
+                    weatherPayloadString = weatherPayload,
+                    weatherParsedTemp = "$tempC°C",
+                    weatherParsedFeels = "$feelsC°C",
+                    weatherParsedCondition = "$codeDesc (Code $code)",
+                    weatherParsedHumidity = "$hum%",
+                    weatherParsedWind = "$windMs m/s",
+                    weatherParsedPressure = "$pres hPa",
+                    weatherParsedElevation = "$elev m",
+                    weatherLastReceivedTime = recvTime,
+                    weatherText = "$tempC°C, $windMs m/s"
+                )
+
+                if (_state.value.isWifiMode) {
+                    val baseUrl = _state.value.wifiBaseUrl.ifEmpty { "http://192.168.4.1" }
+                    val pConn = (URL("$baseUrl/api/weather").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        doOutput = true
+                        connectTimeout = 3000
+                        outputStream.use { it.write(weatherPayload.toByteArray(StandardCharsets.UTF_8)) }
+                    }
+                    pConn.responseCode
+                    val pushTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                    _state.value = _state.value.copy(weatherLastPushedTime = pushTime)
+                    log("Pushed Weather over WiFi: $weatherPayload ($codeDesc)")
+                    delay(200L)
+                    readScreenWifi()
+                } else {
+                    bleMutex.withLock {
+                        writeCharString(charLoc, locPayload)
+                        writeCharString(charWeat, weatherPayload)
+                        if (auto) syncPhoneTimeUnlocked()
+                        val pushTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                        _state.value = _state.value.copy(weatherLastPushedTime = pushTime)
+                        log("Pushed weather to Watchy: $weatherPayload ($codeDesc)")
+                        delay(280L)
+                        readTelemetryUnlocked()
+                        readScreenUnlocked()
+                    }
                 }
             } catch (e: Exception) {
-                log("Auto weather fetch failed: ${e.message}")
+                log("Weather fetch/push failed: ${e.message}")
             }
         }
+    }
+
+    private fun autoFetchAndPushWeatherUnlocked() {
+        var lat = _state.value.latitude.toDoubleOrNull()
+        var lon = _state.value.longitude.toDoubleOrNull()
+        if (lat == null || lon == null) {
+            try {
+                val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                val loc = lm?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                    ?: lm?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                    ?: lm?.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+                if (loc != null) {
+                    lat = loc.latitude
+                    lon = loc.longitude
+                }
+            } catch (_: Exception) {}
+        }
+        if (lat == null || lon == null) {
+            lat = 60.1699
+            lon = 24.9384
+        }
+        fetchAndPushWeather(lat, lon, auto = true)
     }
 }

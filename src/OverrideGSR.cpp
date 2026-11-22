@@ -922,6 +922,7 @@ void OverrideGSR::requestBleWeather() {
     startBleHid();
     if (bleTwinStatusChar) {
         setCharString(bleTwinStatusChar, formatTwinStatus());
+        bleTwinStatusChar->notify();
     }
 }
 

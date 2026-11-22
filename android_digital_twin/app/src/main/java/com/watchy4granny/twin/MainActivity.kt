@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -444,6 +445,114 @@ fun WatchyDigitalTwinApp(bleManager: WatchyBleManager) {
                         )
                     }
                 }
+
+                // Weather Inspection Section: Timestamps, Parsed Data & Strings
+                if (state.weatherLastReceivedTime.isNotEmpty() || state.weatherLastPushedTime.isNotEmpty() || state.weatherPayloadString.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFF334155))
+                    )
+
+                    // Timestamps Box
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF0F172A), RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Received from Meteo:", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                            Text(
+                                text = state.weatherLastReceivedTime.ifEmpty { "--" },
+                                color = Color(0xFF38BDF8),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Pushed to Watchy:", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                            Text(
+                                text = state.weatherLastPushedTime.ifEmpty { "--" },
+                                color = Color(0xFF4ADE80),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    // Parsed Weather Data Grid
+                    Text(
+                        text = "PARSED WEATHER DATA",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        StatTile("TEMP (FEELS)", "${state.weatherParsedTemp} (${state.weatherParsedFeels})", Modifier.weight(1f))
+                        StatTile("CONDITION", state.weatherParsedCondition, Modifier.weight(1f))
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        StatTile("WIND / HUMIDITY", "${state.weatherParsedWind} | ${state.weatherParsedHumidity}", Modifier.weight(1f))
+                        StatTile("PRESSURE / ELEV", "${state.weatherParsedPressure} | ${state.weatherParsedElevation}", Modifier.weight(1f))
+                    }
+
+                    // Weather Strings & Raw JSON
+                    Text(
+                        text = "WEATHER STRINGS",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (state.weatherPayloadString.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
+                                .padding(8.dp)
+                        ) {
+                            Text("Watchy Payload String:", color = Color(0xFF64748B), fontSize = 10.sp)
+                            Text(
+                                text = state.weatherPayloadString,
+                                color = Color(0xFFF1F5F9),
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                    if (state.weatherRawString.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
+                                .padding(8.dp)
+                        ) {
+                            Text("Open-Meteo Current JSON:", color = Color(0xFF64748B), fontSize = 10.sp)
+                            Text(
+                                text = state.weatherRawString,
+                                color = Color(0xFFF1F5F9),
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 10,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -834,35 +943,6 @@ suspend fun searchCityOpenMeteo(query: String, bleManager: WatchyBleManager) {
     }
 }
 
-suspend fun fetchAndPushOpenMeteo(lat: Double, lon: Double, bleManager: WatchyBleManager) {
-    withContext(Dispatchers.IO) {
-        try {
-            bleManager.log("Fetching Open-Meteo weather on phone...")
-            val urlStr = String.format(
-                Locale.US,
-                "https://api.open-meteo.com/v1/forecast?latitude=%.6f&longitude=%.6f&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m&wind_speed_unit=ms",
-                lat, lon
-            )
-            val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 7000
-                readTimeout = 7000
-            }
-            val body = conn.inputStream.bufferedReader().use { it.readText() }
-            val root = JSONObject(body)
-            val elev = root.optDouble("elevation", 0.0).roundToInt()
-            val current = root.getJSONObject("current")
-            val tempC = current.getDouble("temperature_2m").roundToInt()
-            val feelsC = current.getDouble("apparent_temperature").roundToInt()
-            val code = current.getInt("weather_code")
-            val hum = current.getDouble("relative_humidity_2m").roundToInt()
-            val windMs = String.format(Locale.US, "%.1f", current.getDouble("wind_speed_10m"))
-            val pres = current.getDouble("surface_pressure").roundToInt()
-
-            val weatherPayload = "$tempC,$feelsC,$code,$hum,$windMs,$pres,$elev"
-            val locPayload = String.format(Locale.US, "%.6f,%.6f", lat, lon)
-            bleManager.pushWeatherPayload(weatherPayload, locPayload)
-        } catch (e: Exception) {
-            bleManager.log("Weather fetch error: ${e.message}")
-        }
-    }
+fun fetchAndPushOpenMeteo(lat: Double, lon: Double, bleManager: WatchyBleManager) {
+    bleManager.fetchAndPushWeather(lat, lon, auto = false)
 }
