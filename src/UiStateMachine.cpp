@@ -354,7 +354,7 @@ void WeatherState::handleButton(StateMachine* sm, uint8_t button) {
     } else if (button == 3) { // Up -> manual refresh via BLE Twin
         if (usm->watchy) usm->watchy->clearWeatherCompleteTime();
         usm->watchy->requestBleWeather();
-        usm->watchy->UpdateScreen();
+        usm->watchy->UpdateScreen(true);
     }
 }
 

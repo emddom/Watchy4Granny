@@ -238,7 +238,7 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
                 }
                 bleLastAction = "Weather Sync";
                 uiSM.watchy->notifyWeatherComplete();
-                uiSM.watchy->UpdateScreen();
+                uiSM.watchy->UpdateScreen(true);
             }
         }
     }
@@ -581,7 +581,7 @@ void OverrideGSR::drawWatchFace() {
             uint16_t cond = GetWeatherID();
             const unsigned char* icon = getWeatherIcon(cond, false);
             if (icon != nullptr) {
-                display.drawBitmap(8, 34, icon, 48, 32, ForeColor());
+                display.drawBitmap(8, 34, icon, 48, 32, ForeColor(), BackColor());
             }
 
             display.setFont(&aAntiCorona16pt7b);
