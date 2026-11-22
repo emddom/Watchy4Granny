@@ -611,7 +611,7 @@ void OverrideGSR::drawWatchFace() {
             if (lon == NOLOC || lon == 0.0) lon = getWeatherLongitude(false);
 
             display.setCursor(5, 75);
-            String coordStr = "Lat/Lng: ";
+            String coordStr = "Lat/Lng ";
             if (filterGeo(lat, true) && filterGeo(lon, false) && lat != NOLOC && lon != NOLOC) {
                 coordStr += String(lat, 3) + "/" + String(lon, 3);
             } else {
@@ -620,20 +620,20 @@ void OverrideGSR::drawWatchFace() {
             display.print(coordStr);
 
             display.setCursor(5, 98);
-            display.print("Elevation: " + String(GetWeatherElevation()) + (IsMetric() ? " m" : " ft"));
+            display.print("Elevation " + String(GetWeatherElevation()) + (IsMetric() ? " m" : " ft"));
 
             display.setCursor(5, 121);
-            display.print("Humidity: " + String(GetWeatherHumidity()) + "%");
+            display.print("Humidity " + String(GetWeatherHumidity()) + "%");
 
             display.setCursor(5, 144);
             if (IsMetric()) {
-                display.print("Wind: " + String(GetWeatherWindSpeed() / 3.6f, 1) + " m/s");
+                display.print("Wind " + String(GetWeatherWindSpeed() / 3.6f, 1) + " m/s");
             } else {
-                display.print("Wind: " + String((int)GetWeatherWindSpeed()) + " mph");
+                display.print("Wind " + String((int)GetWeatherWindSpeed()) + " mph");
             }
 
             display.setCursor(5, 167);
-            display.print("Pressure: " + String(GetWeatherPressure()) + " hPa");
+            display.print("Pressure " + String(GetWeatherPressure()) + " hPa");
 
             display.setCursor(5, 190);
             time_t now = (WatchTime.UTC_RAW > 0) ? WatchTime.UTC_RAW : time(nullptr);
@@ -642,9 +642,9 @@ void OverrideGSR::drawWatchFace() {
                 if (now >= weatherReceivedTime) {
                     elapsedMinutes = (now - weatherReceivedTime) / 60;
                 }
-                display.print("upd: " + String(elapsedMinutes) + " min");
+                display.print("upd " + String(elapsedMinutes) + " min");
             } else {
-                display.print("upd: --");
+                display.print("upd --");
             }
         }
     } else if (showingBleRemote) {
