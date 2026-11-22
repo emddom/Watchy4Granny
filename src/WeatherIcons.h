@@ -28,5 +28,6 @@ extern const unsigned char WeatherIcon_Thunderstorm_Small [] PROGMEM;
 
 const unsigned char* getWeatherIcon(uint16_t Condition, bool Small = false);
 const unsigned char* getTemperatureScaleIcon(bool Metric, bool Small = false);
+const char* getWeatherIconName(uint16_t Condition);
 
 #endif // WEATHERICONS_H

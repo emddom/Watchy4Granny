@@ -602,38 +602,49 @@ void OverrideGSR::drawWatchFace() {
             }
             display.print(feelsStr);
 
+            // Icon / condition name (e.g. "Cloudy")
+            display.setCursor(5, 52);
+            display.print(getWeatherIconName(cond));
+
             double lat = getWeatherLatitude(true);
             if (lat == NOLOC || lat == 0.0) lat = getWeatherLatitude(false);
             double lon = getWeatherLongitude(true);
             if (lon == NOLOC || lon == 0.0) lon = getWeatherLongitude(false);
 
-            display.setFont(&aAntiCorona10pt7b);
-            display.setCursor(5, 58);
+            display.setCursor(5, 75);
             String coordStr = "Lat/Lng: ";
             if (filterGeo(lat, true) && filterGeo(lon, false) && lat != NOLOC && lon != NOLOC) {
-                coordStr += String(lat, 1) + " / " + String(lon, 1);
+                String c3 = "Lat/Lng: " + String(lat, 3) + " / " + String(lon, 3);
+                int16_t cx1, cy1;
+                uint16_t cw, ch;
+                display.getTextBounds(c3, 0, 0, &cx1, &cy1, &cw, &ch);
+                if (cw <= 190) {
+                    coordStr = c3;
+                } else {
+                    coordStr = "Lat/Lng: " + String(lat, 2) + " / " + String(lon, 2);
+                }
             } else {
                 coordStr += "-- / --";
             }
             display.print(coordStr);
 
-            display.setCursor(5, 84);
+            display.setCursor(5, 98);
             display.print("Elevation: " + String(GetWeatherElevation()) + (IsMetric() ? " m" : " ft"));
 
-            display.setCursor(5, 110);
+            display.setCursor(5, 121);
             display.print("Humidity: " + String(GetWeatherHumidity()) + "%");
 
-            display.setCursor(5, 136);
+            display.setCursor(5, 144);
             if (IsMetric()) {
                 display.print("Wind: " + String(GetWeatherWindSpeed() / 3.6f, 1) + " m/s");
             } else {
                 display.print("Wind: " + String((int)GetWeatherWindSpeed()) + " mph");
             }
 
-            display.setCursor(5, 162);
+            display.setCursor(5, 167);
             display.print("Pressure: " + String(GetWeatherPressure()) + " hPa");
 
-            display.setCursor(5, 188);
+            display.setCursor(5, 190);
             time_t now = (WatchTime.UTC_RAW > 0) ? WatchTime.UTC_RAW : time(nullptr);
             if (weatherReceivedTime > 0) {
                 long elapsedMinutes = 0;
