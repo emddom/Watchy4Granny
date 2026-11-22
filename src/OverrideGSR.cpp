@@ -49,6 +49,7 @@ static bool bleInitialized = false;
 static bool bleConnected = false;
 static bool screenReadMode = false;
 static bool bleWeatherPending = false;
+static unsigned long bleWeatherReqTime = 0;
 static unsigned long weatherCompleteTime = 0;
 static unsigned long bleKeepAliveUntil = 0;
 static uint32_t screenFrameSeq = 1;
@@ -235,7 +236,9 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
             float elev = 0;
             if (sscanf(val.c_str(), "%f,%f,%u,%u,%f,%u,%f", &tempC, &feelsC, &cond, &hum, &windMs, &pres, &elev) >= 5) {
                 bleWeatherPending = false;
+                bleWeatherReqTime = 0;
                 weatherReceivedTime = (WatchTime.UTC_RAW > 0) ? WatchTime.UTC_RAW : time(nullptr);
+                uiSM.watchy->CancelWeather();
                 uiSM.watchy->SetWeatherFromBLE(tempC, feelsC, (uint16_t)cond, (uint8_t)hum, windMs * 3.6f, (uint16_t)pres, elev);
                 setCharString(pChar, formatTwinWeather());
                 if (bleTwinStatusChar) {
@@ -310,6 +313,8 @@ void OverrideGSR::InsertPost() {
 
 void OverrideGSR::InsertInitWatchStyle(uint8_t StyleID) {
     WantWeather(true);
+    CancelWeather();
+    SetWeatherInterval(0);
     Design.Status.BATTy = 193;
 }
 
@@ -369,7 +374,7 @@ void OverrideGSR::InsertOnMinute() {
   }
 
   // Clear the messages when the minute changes so the normal clock returns
-  if (helpRequested || wifiFailed || showingMedInfo || showingButtons || (showingWeather && !IsWeatherLoading() && !bleWeatherPending)) {
+  if (helpRequested || wifiFailed || showingMedInfo || showingButtons || (showingWeather && !bleWeatherPending)) {
      helpRequested = false;
      wifiFailed = false;
      showingMedInfo = false;
@@ -407,15 +412,10 @@ bool OverrideGSR::InsertNeedAwake(bool GoingAsleep) {
         UpdateScreen();
         return true;
     }
-    // Intercept WiFi weather polling - disable if Twin is not connected
+    // Suppress background WiFi weather polling
     if (IsWeatherLoading() && !callingForHelp) {
-        if (!isBleConnected()) {
-            CancelWeather();
-            SetWeatherInterval(0);
-        } else {
-            CancelWeather();
-            requestBleWeather();
-        }
+        CancelWeather();
+        SetWeatherInterval(0);
         UpdateScreen();
         return false;
     }
@@ -557,7 +557,7 @@ void OverrideGSR::drawWatchFace() {
 
         if (!IsWeatherReady()) {
             display.setFont(&aAntiCorona15pt7b);
-            String title = (IsWeatherLoading() || bleWeatherPending) ? "WEATHER *" : "WEATHER";
+            String title = bleWeatherPending ? "WEATHER *" : "WEATHER";
             int16_t x1, y1;
             uint16_t w, h;
             display.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
@@ -565,7 +565,7 @@ void OverrideGSR::drawWatchFace() {
             display.print(title);
 
             display.setFont(&aAntiCorona12pt7b);
-            if (IsWeatherLoading() || bleWeatherPending) {
+            if (bleWeatherPending) {
                 display.setCursor(15, 85);
                 display.print(bleConnected ? "SYNCING BLE..." : "BLE WAITING...");
                 display.setFont(&aAntiCorona10pt7b);
@@ -597,7 +597,7 @@ void OverrideGSR::drawWatchFace() {
             display.setFont(&aAntiCorona10pt7b);
             display.setCursor(display.getCursorX() + 4, 28);
             String feelsStr = "(" + String(GetWeatherTemperatureFeelsLike()) + (IsMetric() ? " C)" : " F)");
-            if (IsWeatherLoading() || bleWeatherPending) {
+            if (bleWeatherPending) {
                 feelsStr += " *";
             }
             display.print(feelsStr);
@@ -900,6 +900,7 @@ void OverrideGSR::startBleHid() {
 void OverrideGSR::stopBleHid() {
     bleMirrorMode = false;
     bleWeatherPending = false;
+    bleWeatherReqTime = 0;
     screenReadMode = false;
     bleStartTime = 0;
     bleKeepAliveUntil = 0;
@@ -931,6 +932,12 @@ void OverrideGSR::refreshBleActivity() {
 void OverrideGSR::tickBleTimeout() {
     if (bleStartTime == 0) return;
 
+    if (bleWeatherPending && bleWeatherReqTime > 0 && millis() - bleWeatherReqTime >= 20000) {
+        bleWeatherPending = false;
+        bleWeatherReqTime = 0;
+        UpdateScreen(true);
+    }
+
     if (bleConnected) {
         // When connected, disconnect only after 120 seconds of complete idle
         if (millis() - bleStartTime >= 120000) {
@@ -949,6 +956,7 @@ void OverrideGSR::tickBleTimeout() {
 void OverrideGSR::requestBleWeather() {
     refreshBleActivity();
     bleWeatherPending = true;
+    bleWeatherReqTime = millis();
     bleWeatherReqSeq++;
     startBleHid();
     if (bleTwinStatusChar) {
@@ -1117,7 +1125,9 @@ void OverrideGSR::InsertAddWeb() {
         float elev = 0;
         if (sscanf(body.c_str(), "%f,%f,%u,%u,%f,%u,%f", &tempC, &feelsC, &cond, &hum, &windMs, &pres, &elev) >= 5) {
             bleWeatherPending = false;
+            bleWeatherReqTime = 0;
             weatherReceivedTime = (WatchTime.UTC_RAW > 0) ? WatchTime.UTC_RAW : time(nullptr);
+            CancelWeather();
             SetWeatherFromBLE(tempC, feelsC, (uint16_t)cond, (uint8_t)hum, windMs * 3.6f, (uint16_t)pres, elev);
             notifyWeatherComplete();
             UpdateScreen(true);
