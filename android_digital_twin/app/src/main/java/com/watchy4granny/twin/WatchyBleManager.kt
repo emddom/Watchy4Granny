@@ -55,28 +55,31 @@ data class WatchyTwinUiState(
 )
 
 fun parseWeatherCodeDescription(code: Int): String = when (code) {
-    0 -> "Clear sky"
-    1 -> "Mainly clear"
-    2 -> "Partly cloudy"
-    3 -> "Overcast"
+    0 -> "Sunny"
+    1 -> "Mainly Sunny"
+    2 -> "Partly Cloudy"
+    3 -> "Cloudy"
     45, 48 -> "Fog"
-    51 -> "Light drizzle"
-    53 -> "Moderate drizzle"
-    55 -> "Dense drizzle"
-    56, 57 -> "Freezing drizzle"
-    61 -> "Slight rain"
-    63 -> "Moderate rain"
-    65 -> "Heavy rain"
-    66, 67 -> "Freezing rain"
-    71 -> "Slight snowfall"
-    73 -> "Moderate snowfall"
-    75 -> "Heavy snowfall"
-    77 -> "Snow grains"
-    80, 81, 82 -> "Rain showers"
-    85, 86 -> "Snow showers"
-    95 -> "Thunderstorm"
-    96, 99 -> "Thunderstorm with hail"
-    else -> "Code $code"
+    51, 53, 55 -> "Drizzle"
+    56, 57 -> "Freezing Drizzle"
+    61, 63, 65 -> "Rain"
+    66, 67 -> "Freezing Rain"
+    71, 73, 75 -> "Snow"
+    77 -> "Snow Grains"
+    80, 81, 82 -> "Rain Showers"
+    85, 86 -> "Snow Showers"
+    95, 96, 99 -> "Thunderstorm"
+    else -> when {
+        code > 801 || code == 3 -> "Cloudy"
+        code == 801 || code == 1 || code == 2 -> "Partly Cloudy"
+        code == 800 || code == 0 -> "Sunny"
+        code >= 700 -> "Fog"
+        code >= 600 -> "Snow"
+        code >= 500 -> "Rain"
+        code >= 300 -> "Drizzle"
+        code >= 200 -> "Thunderstorm"
+        else -> "Cloudy"
+    }
 }
 
 @SuppressLint("MissingPermission")
@@ -935,11 +938,12 @@ class WatchyBleManager(private val context: Context) {
                 val root = JSONObject(body)
                 val elev = root.optDouble("elevation", 0.0).roundToInt()
                 val current = root.getJSONObject("current")
-                val rawJson = current.toString(2)
                 val tempC = current.getDouble("temperature_2m").roundToInt()
                 val feelsC = current.getDouble("apparent_temperature").roundToInt()
                 val code = current.getInt("weather_code")
                 val codeDesc = parseWeatherCodeDescription(code)
+                current.put("weather_code_name", codeDesc)
+                val rawJson = current.toString(2)
                 val hum = current.getDouble("relative_humidity_2m").roundToInt()
                 val windMs = String.format(Locale.US, "%.1f", current.getDouble("wind_speed_10m"))
                 val pres = current.getDouble("surface_pressure").roundToInt()

@@ -501,7 +501,7 @@ fun WatchyDigitalTwinApp(bleManager: WatchyBleManager) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         StatTile("TEMP (FEELS)", "${state.weatherParsedTemp} (${state.weatherParsedFeels})", Modifier.weight(1f))
-                        StatTile("CONDITION", state.weatherParsedCondition, Modifier.weight(1f))
+                        StatTile("WEATHER CODE", state.weatherParsedCondition, Modifier.weight(1f))
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
