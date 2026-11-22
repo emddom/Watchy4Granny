@@ -61,8 +61,8 @@ void UiStateMachine::update() {
         setState(&watchfaceState);
     }
 
-    // 2. Global 20-second inactivity timeout for all secondary screens (except suspend)
-    if (currentState != &watchfaceState && currentState != &suspendState) {
+    // 2. Global 20-second inactivity timeout for all secondary screens (except suspend and bleRemote)
+    if (currentState != &watchfaceState && currentState != &suspendState && currentState != &bleRemoteState) {
         if (currentState == &weatherState && watchy && watchy->isBleWeatherPending() && watchy->isBleConnected()) {
             // Weather fetch is ongoing and phone is connected: stay alive while waiting (failsafe 60s)
             if (lastActivityTime > 0 && (millis() - lastActivityTime >= 60000)) {
@@ -70,6 +70,12 @@ void UiStateMachine::update() {
                 setState(&watchfaceState);
             }
         } else if (lastActivityTime > 0 && (millis() - lastActivityTime >= 20000)) {
+            lastActivityTime = millis();
+            setState(&watchfaceState);
+        }
+    } else if (currentState == &bleRemoteState) {
+        // BLE Remote timeout: exit back to watchface if BLE has timed out and stopped running
+        if (watchy && !watchy->isBleRunning() && lastActivityTime > 0 && (millis() - lastActivityTime >= 30000)) {
             lastActivityTime = millis();
             setState(&watchfaceState);
         }

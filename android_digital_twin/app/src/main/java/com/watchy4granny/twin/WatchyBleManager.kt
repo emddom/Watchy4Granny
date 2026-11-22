@@ -349,23 +349,14 @@ class WatchyBleManager(private val context: Context) {
                 } else if (serviceRefreshRetries == 1) {
                     serviceRefreshRetries = 2
                     val dev = gatt.device
-                    log("OS bond cache locked old GATT table — resetting bond for ${dev.address} & reconnecting...")
+                    log("Retrying GATT service discovery with cache refresh for ${dev.address}...")
                     _state.value = _state.value.copy(
-                        statusBanner = "Refreshing cached Bluetooth pairing with Watchy..."
+                        statusBanner = "Refreshing cached Bluetooth services with Watchy..."
                     )
-                    try {
-                        gatt.disconnect()
-                        gatt.close()
-                    } catch (_: Exception) {}
-                    bluetoothGatt = null
-                    try {
-                        dev.javaClass.getMethod("removeBond").invoke(dev)
-                    } catch (e: Exception) {
-                        log("removeBond error: ${e.message}")
-                    }
+                    refreshGattCache(gatt)
                     mainHandler.postDelayed({
-                        connectToDevice(dev)
-                    }, 1400L)
+                        gatt.discoverServices()
+                    }, 800L)
                     return
                 }
                 val msg = "Phone cached old Bluetooth pairing. Open Android Settings → Bluetooth → Watchy4Granny → Forget/Unpair, then tap Connect."
