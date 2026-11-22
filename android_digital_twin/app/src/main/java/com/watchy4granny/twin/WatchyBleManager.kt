@@ -55,30 +55,53 @@ data class WatchyTwinUiState(
 )
 
 fun parseWeatherCodeDescription(code: Int): String = when (code) {
-    0 -> "Sunny"
-    1 -> "Mainly Sunny"
-    2 -> "Partly Cloudy"
-    3 -> "Cloudy"
+    0 -> "Clear sky"
+    1 -> "Mainly clear"
+    2 -> "Partly cloudy"
+    3 -> "Overcast"
     45, 48 -> "Fog"
-    51, 53, 55 -> "Drizzle"
-    56, 57 -> "Freezing Drizzle"
-    61, 63, 65 -> "Rain"
-    66, 67 -> "Freezing Rain"
-    71, 73, 75 -> "Snow"
-    77 -> "Snow Grains"
-    80, 81, 82 -> "Rain Showers"
-    85, 86 -> "Snow Showers"
-    95, 96, 99 -> "Thunderstorm"
-    else -> when {
-        code > 801 || code == 3 -> "Cloudy"
-        code == 801 || code == 1 || code == 2 -> "Partly Cloudy"
-        code == 800 || code == 0 -> "Sunny"
-        code >= 700 -> "Fog"
-        code >= 600 -> "Snow"
-        code >= 500 -> "Rain"
-        code >= 300 -> "Drizzle"
-        code >= 200 -> "Thunderstorm"
-        else -> "Cloudy"
+    51 -> "Light drizzle"
+    53 -> "Moderate drizzle"
+    55 -> "Dense drizzle"
+    56, 57 -> "Freezing drizzle"
+    61 -> "Slight rain"
+    63 -> "Moderate rain"
+    65 -> "Heavy rain"
+    66, 67 -> "Freezing rain"
+    71 -> "Slight snowfall"
+    73 -> "Moderate snowfall"
+    75 -> "Heavy snowfall"
+    77 -> "Snow grains"
+    80, 81, 82 -> "Rain showers"
+    85, 86 -> "Snow showers"
+    95 -> "Thunderstorm"
+    96, 99 -> "Thunderstorm with hail"
+    else -> "Code $code"
+}
+
+fun formatCurrentJson(
+    time: String,
+    interval: Int,
+    temp: Any,
+    feels: Any,
+    weatherCodeName: String,
+    hum: Any,
+    wind: Any,
+    pres: Any,
+    elevation: Any
+): String {
+    return buildString {
+        append("{\n")
+        if (time.isNotEmpty()) append("  \"time\": \"$time\",\n")
+        append("  \"interval\": $interval,\n")
+        append("  \"temperature_2m\": $temp,\n")
+        append("  \"apparent_temperature\": $feels,\n")
+        append("  \"weather_code\": \"$weatherCodeName\",\n")
+        append("  \"relative_humidity_2m\": $hum,\n")
+        append("  \"wind_speed_10m\": $wind,\n")
+        append("  \"surface_pressure\": $pres,\n")
+        append("  \"elevation\": $elevation\n")
+        append("}")
     }
 }
 
@@ -504,6 +527,19 @@ class WatchyBleManager(private val context: Context) {
                 _state.value = _state.value.copy(
                     weatherText = weatherDisplay,
                     weatherPayloadString = if (_state.value.weatherPayloadString.isEmpty() && ready) wStr else _state.value.weatherPayloadString,
+                    weatherRawString = if (_state.value.weatherRawString.isEmpty() && ready) {
+                        formatCurrentJson(
+                            time = "",
+                            interval = 900,
+                            temp = parts[0],
+                            feels = if (parts.size >= 2) parts[1] else 0,
+                            weatherCodeName = parseWeatherCodeDescription(code),
+                            hum = if (parts.size >= 4) parts[3] else 0,
+                            wind = parts[4],
+                            pres = pres,
+                            elevation = if (parts.size >= 7) parts[6] else 0
+                        )
+                    } else _state.value.weatherRawString,
                     weatherParsedTemp = if (_state.value.weatherParsedTemp.isEmpty() && ready) "${parts[0]}°C" else _state.value.weatherParsedTemp,
                     weatherParsedFeels = if (_state.value.weatherParsedFeels.isEmpty() && ready && parts.size >= 2) "${parts[1]}°C" else _state.value.weatherParsedFeels,
                     weatherParsedCondition = if (_state.value.weatherParsedCondition.isEmpty() && ready) "${parseWeatherCodeDescription(code)} (Code $code)" else _state.value.weatherParsedCondition,
@@ -873,9 +909,26 @@ class WatchyBleManager(private val context: Context) {
             val code = parts[2].toIntOrNull() ?: 0
             val elev = if (parts.size >= 7) parts[6] else "--"
             val pres = if (parts.size >= 6) parts[5] else "--"
+            val raw = if (rawJson.isNotEmpty()) {
+                rawJson
+            } else if (_state.value.weatherRawString.isNotEmpty()) {
+                _state.value.weatherRawString
+            } else {
+                formatCurrentJson(
+                    time = "",
+                    interval = 900,
+                    temp = parts[0],
+                    feels = if (parts.size >= 2) parts[1] else 0,
+                    weatherCodeName = parseWeatherCodeDescription(code),
+                    hum = if (parts.size >= 4) parts[3] else 0,
+                    wind = parts[4],
+                    pres = pres,
+                    elevation = elev
+                )
+            }
             _state.value = _state.value.copy(
                 weatherPayloadString = payload,
-                weatherRawString = if (rawJson.isNotEmpty()) rawJson else _state.value.weatherRawString,
+                weatherRawString = raw,
                 weatherParsedTemp = "${parts[0]}°C",
                 weatherParsedFeels = if (parts.size >= 2) "${parts[1]}°C" else _state.value.weatherParsedFeels,
                 weatherParsedCondition = "${parseWeatherCodeDescription(code)} (Code $code)",
@@ -938,15 +991,33 @@ class WatchyBleManager(private val context: Context) {
                 val root = JSONObject(body)
                 val elev = root.optDouble("elevation", 0.0).roundToInt()
                 val current = root.getJSONObject("current")
+                val timeStr = current.optString("time", "")
+                val intervalVal = current.optInt("interval", 900)
+                val tempVal = current.opt("temperature_2m") ?: 0
+                val feelsVal = current.opt("apparent_temperature") ?: 0
+                val humVal = current.opt("relative_humidity_2m") ?: 0
+                val windVal = current.opt("wind_speed_10m") ?: 0.0
+                val presVal = current.opt("surface_pressure") ?: 1013
+
                 val tempC = current.getDouble("temperature_2m").roundToInt()
                 val feelsC = current.getDouble("apparent_temperature").roundToInt()
                 val code = current.getInt("weather_code")
                 val codeDesc = parseWeatherCodeDescription(code)
-                current.put("weather_code_name", codeDesc)
-                val rawJson = current.toString(2)
                 val hum = current.getDouble("relative_humidity_2m").roundToInt()
                 val windMs = String.format(Locale.US, "%.1f", current.getDouble("wind_speed_10m"))
                 val pres = current.getDouble("surface_pressure").roundToInt()
+
+                val rawJson = formatCurrentJson(
+                    time = timeStr,
+                    interval = intervalVal,
+                    temp = tempVal,
+                    feels = feelsVal,
+                    weatherCodeName = codeDesc,
+                    hum = humVal,
+                    wind = windVal,
+                    pres = presVal,
+                    elevation = elev
+                )
 
                 val weatherPayload = "$tempC,$feelsC,$code,$hum,$windMs,$pres,$elev"
                 val locPayload = String.format(Locale.US, "%.6f,%.6f", lat, lon)

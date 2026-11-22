@@ -827,30 +827,28 @@
     function getWeatherCodeDescription(code) {
       const c = Number(code);
       switch (c) {
-        case 0: return "Sunny";
-        case 1: return "Mainly Sunny";
-        case 2: return "Partly Cloudy";
-        case 3: return "Cloudy";
+        case 0: return "Clear sky";
+        case 1: return "Mainly clear";
+        case 2: return "Partly cloudy";
+        case 3: return "Overcast";
         case 45: case 48: return "Fog";
-        case 51: case 53: case 55: return "Drizzle";
-        case 56: case 57: return "Freezing Drizzle";
-        case 61: case 63: case 65: return "Rain";
-        case 66: case 67: return "Freezing Rain";
-        case 71: case 73: case 75: return "Snow";
-        case 77: return "Snow Grains";
-        case 80: case 81: case 82: return "Rain Showers";
-        case 85: case 86: return "Snow Showers";
-        case 95: case 96: case 99: return "Thunderstorm";
-        default:
-          if (c > 801 || c === 3) return "Cloudy";
-          if (c === 801 || c === 1 || c === 2) return "Partly Cloudy";
-          if (c === 800 || c === 0) return "Sunny";
-          if (c >= 700) return "Fog";
-          if (c >= 600) return "Snow";
-          if (c >= 500) return "Rain";
-          if (c >= 300) return "Drizzle";
-          if (c >= 200) return "Thunderstorm";
-          return `Cloudy (${code})`;
+        case 51: return "Light drizzle";
+        case 53: return "Moderate drizzle";
+        case 55: return "Dense drizzle";
+        case 56: case 57: return "Freezing drizzle";
+        case 61: return "Slight rain";
+        case 63: return "Moderate rain";
+        case 65: return "Heavy rain";
+        case 66: case 67: return "Freezing rain";
+        case 71: return "Slight snowfall";
+        case 73: return "Moderate snowfall";
+        case 75: return "Heavy snowfall";
+        case 77: return "Snow grains";
+        case 80: case 81: case 82: return "Rain showers";
+        case 85: case 86: return "Snow showers";
+        case 95: return "Thunderstorm";
+        case 96: case 99: return "Thunderstorm with hail";
+        default: return `Code ${code}`;
       }
     }
 
@@ -886,6 +884,20 @@
         document.getElementById('weatParsedCond').textContent = `${codeDesc} (Code ${code})`;
         document.getElementById('weatParsedWindHum').textContent = `${wind} m/s | ${hum}%`;
         document.getElementById('weatParsedPresElev').textContent = `${pres} hPa | ${elev} m`;
+        const rawJsonEl = document.getElementById('weatRawJson');
+        if (rawJsonEl && (!rawJsonEl.textContent || rawJsonEl.textContent === '--')) {
+          const orderedCurrent = {
+            interval: 900,
+            temperature_2m: Number(tempC),
+            apparent_temperature: Number(feelsC),
+            weather_code: codeDesc,
+            relative_humidity_2m: Number(hum),
+            wind_speed_10m: Number(wind),
+            surface_pressure: Number(pres),
+            elevation: Number(elev)
+          };
+          rawJsonEl.textContent = JSON.stringify(orderedCurrent, null, 2);
+        }
       }
     }
 
@@ -909,6 +921,20 @@
         document.getElementById('weatParsedCond').textContent = `${codeDesc} (Code ${code})`;
         document.getElementById('weatParsedWindHum').textContent = `${wind} m/s | ${hum}%`;
         document.getElementById('weatParsedPresElev').textContent = `${pres} hPa | ${elev} m`;
+        const rawJsonEl = document.getElementById('weatRawJson');
+        if (rawJsonEl && (!rawJsonEl.textContent || rawJsonEl.textContent === '--')) {
+          const orderedCurrent = {
+            interval: 900,
+            temperature_2m: Number(tempC),
+            apparent_temperature: Number(feelsC),
+            weather_code: codeDesc,
+            relative_humidity_2m: Number(hum),
+            wind_speed_10m: Number(wind),
+            surface_pressure: Number(pres),
+            elevation: Number(elev)
+          };
+          rawJsonEl.textContent = JSON.stringify(orderedCurrent, null, 2);
+        }
       }
     }
 
@@ -938,10 +964,24 @@
             Math.round(data.elevation || 0)
           ].join(',');
 
+          const codeDesc = getWeatherCodeDescription(c.weather_code);
+          const elev = Math.round(data.elevation || 0);
+          const orderedCurrent = {
+            time: c.time,
+            interval: c.interval,
+            temperature_2m: c.temperature_2m,
+            apparent_temperature: c.apparent_temperature,
+            weather_code: codeDesc,
+            relative_humidity_2m: c.relative_humidity_2m,
+            wind_speed_10m: c.wind_speed_10m,
+            surface_pressure: c.surface_pressure,
+            elevation: elev
+          };
+
           await fetch(`${wifiBaseUrl}/api/weather`, { method: 'POST', body: payload });
           const pushTime = formatTimestamp();
-          updateWeatherDetailsUi({ rawJson: c, payload, c, elevation: data.elevation, recvTime, pushTime });
-          log(`Pushed Weather to Watchy via WiFi AP: ${payload} (${getWeatherCodeDescription(c.weather_code)})`);
+          updateWeatherDetailsUi({ rawJson: orderedCurrent, payload, c, elevation: data.elevation, recvTime, pushTime });
+          log(`Pushed Weather to Watchy via WiFi AP: ${payload} (${codeDesc})`);
           await new Promise(r => setTimeout(r, 200));
           await pollWifiStatus();
           await readScreenWifi();
@@ -969,10 +1009,24 @@
             Math.round(c.surface_pressure),
             Math.round(data.elevation || 0)
           ].join(',');
+          const codeDesc = getWeatherCodeDescription(c.weather_code);
+          const elev = Math.round(data.elevation || 0);
+          const orderedCurrent = {
+            time: c.time,
+            interval: c.interval,
+            temperature_2m: c.temperature_2m,
+            apparent_temperature: c.apparent_temperature,
+            weather_code: codeDesc,
+            relative_humidity_2m: c.relative_humidity_2m,
+            wind_speed_10m: c.wind_speed_10m,
+            surface_pressure: c.surface_pressure,
+            elevation: elev
+          };
+
           await charWeat.writeValue(enc.encode(payload));
           const pushTime = formatTimestamp();
-          updateWeatherDetailsUi({ rawJson: c, payload, c, elevation: data.elevation, recvTime, pushTime });
-          log(`Pushed Weather to Watchy: ${payload} (${getWeatherCodeDescription(c.weather_code)})`);
+          updateWeatherDetailsUi({ rawJson: orderedCurrent, payload, c, elevation: data.elevation, recvTime, pushTime });
+          log(`Pushed Weather to Watchy: ${payload} (${codeDesc})`);
           await new Promise(r => setTimeout(r, 250));
           await readTelemetryUnlocked();
           await readScreenUnlocked();
