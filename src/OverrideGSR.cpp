@@ -32,6 +32,7 @@ bool showingBleRemote = false;
 bool bleMirrorMode = false;
 volatile uint8_t pendingBleMode = 0;
 RTC_DATA_ATTR time_t suspendTime = 0;
+RTC_DATA_ATTR time_t weatherReceivedTime = 0;
 
 using GxDisplayType = GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT>;
 using GxBufType = uint8_t(GxDisplayType::*)[5000];
@@ -209,6 +210,9 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
                     rawEpoch /= 1000LL; // Convert milliseconds to seconds
                 }
                 if (rawEpoch > 1700000000LL) {
+                    if (weatherReceivedTime < 1700000000LL && weatherReceivedTime > 0) {
+                        weatherReceivedTime = (time_t)rawEpoch;
+                    }
                     uiSM.watchy->SetTimeFromBLE((time_t)rawEpoch, tzStr);
                 }
             }
@@ -231,6 +235,7 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
             float elev = 0;
             if (sscanf(val.c_str(), "%f,%f,%u,%u,%f,%u,%f", &tempC, &feelsC, &cond, &hum, &windMs, &pres, &elev) >= 5) {
                 bleWeatherPending = false;
+                weatherReceivedTime = (WatchTime.UTC_RAW > 0) ? WatchTime.UTC_RAW : time(nullptr);
                 uiSM.watchy->SetWeatherFromBLE(tempC, feelsC, (uint16_t)cond, (uint8_t)hum, windMs * 3.6f, (uint16_t)pres, elev);
                 setCharString(pChar, formatTwinWeather());
                 if (bleTwinStatusChar) {
@@ -548,17 +553,17 @@ void OverrideGSR::drawWatchFace() {
         display.print(line4);
     } else if (showingWeather) {
         display.fillScreen(BackColor());
-        display.setFont(&aAntiCorona15pt7b);
         display.setTextColor(ForeColor());
 
-        String title = (IsWeatherLoading() || bleWeatherPending) ? "WEATHER *" : "WEATHER";
-        int16_t x1, y1;
-        uint16_t w, h;
-        display.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
-        display.setCursor((200 - w) / 2, 24);
-        display.print(title);
-
         if (!IsWeatherReady()) {
+            display.setFont(&aAntiCorona15pt7b);
+            String title = (IsWeatherLoading() || bleWeatherPending) ? "WEATHER *" : "WEATHER";
+            int16_t x1, y1;
+            uint16_t w, h;
+            display.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
+            display.setCursor((200 - w) / 2, 28);
+            display.print(title);
+
             display.setFont(&aAntiCorona12pt7b);
             if (IsWeatherLoading() || bleWeatherPending) {
                 display.setCursor(15, 85);
@@ -581,17 +586,20 @@ void OverrideGSR::drawWatchFace() {
             uint16_t cond = GetWeatherID();
             const unsigned char* icon = getWeatherIcon(cond, false);
             if (icon != nullptr) {
-                display.drawBitmap(8, 34, icon, 48, 32, ForeColor(), BackColor());
+                display.drawBitmap(6, 4, icon, 48, 32, ForeColor(), BackColor());
             }
 
             display.setFont(&aAntiCorona16pt7b);
             String tempStr = String(GetWeatherTemperature()) + (IsMetric() ? " C" : " F");
-            display.setCursor(60, 60);
+            display.setCursor(58, 28);
             display.print(tempStr);
 
             display.setFont(&aAntiCorona10pt7b);
-            display.setCursor(display.getCursorX() + 4, 60);
+            display.setCursor(display.getCursorX() + 4, 28);
             String feelsStr = "(" + String(GetWeatherTemperatureFeelsLike()) + (IsMetric() ? " C)" : " F)");
+            if (IsWeatherLoading() || bleWeatherPending) {
+                feelsStr += " *";
+            }
             display.print(feelsStr);
 
             double lat = getWeatherLatitude(true);
@@ -600,7 +608,7 @@ void OverrideGSR::drawWatchFace() {
             if (lon == NOLOC || lon == 0.0) lon = getWeatherLongitude(false);
 
             display.setFont(&aAntiCorona10pt7b);
-            display.setCursor(5, 90);
+            display.setCursor(5, 58);
             String coordStr = "Lat/Lng: ";
             if (filterGeo(lat, true) && filterGeo(lon, false) && lat != NOLOC && lon != NOLOC) {
                 coordStr += String(lat, 1) + " / " + String(lon, 1);
@@ -609,21 +617,33 @@ void OverrideGSR::drawWatchFace() {
             }
             display.print(coordStr);
 
-            display.setCursor(5, 115);
+            display.setCursor(5, 84);
             display.print("Elevation: " + String(GetWeatherElevation()) + (IsMetric() ? " m" : " ft"));
 
-            display.setCursor(5, 140);
+            display.setCursor(5, 110);
             display.print("Humidity: " + String(GetWeatherHumidity()) + "%");
 
-            display.setCursor(5, 165);
+            display.setCursor(5, 136);
             if (IsMetric()) {
                 display.print("Wind: " + String(GetWeatherWindSpeed() / 3.6f, 1) + " m/s");
             } else {
                 display.print("Wind: " + String((int)GetWeatherWindSpeed()) + " mph");
             }
 
-            display.setCursor(5, 190);
+            display.setCursor(5, 162);
             display.print("Pressure: " + String(GetWeatherPressure()) + " hPa");
+
+            display.setCursor(5, 188);
+            time_t now = (WatchTime.UTC_RAW > 0) ? WatchTime.UTC_RAW : time(nullptr);
+            if (weatherReceivedTime > 0) {
+                long elapsedMinutes = 0;
+                if (now >= weatherReceivedTime) {
+                    elapsedMinutes = (now - weatherReceivedTime) / 60;
+                }
+                display.print("upd: " + String(elapsedMinutes) + " min");
+            } else {
+                display.print("upd: --");
+            }
         }
     } else if (showingBleRemote) {
         display.fillScreen(BackColor());
@@ -1086,6 +1106,7 @@ void OverrideGSR::InsertAddWeb() {
         float elev = 0;
         if (sscanf(body.c_str(), "%f,%f,%u,%u,%f,%u,%f", &tempC, &feelsC, &cond, &hum, &windMs, &pres, &elev) >= 5) {
             bleWeatherPending = false;
+            weatherReceivedTime = (WatchTime.UTC_RAW > 0) ? WatchTime.UTC_RAW : time(nullptr);
             SetWeatherFromBLE(tempC, feelsC, (uint16_t)cond, (uint8_t)hum, windMs * 3.6f, (uint16_t)pres, elev);
             notifyWeatherComplete();
             UpdateScreen(true);
@@ -1116,6 +1137,9 @@ void OverrideGSR::InsertAddWeb() {
         long epoch = 0;
         char tzBuf[48] = {0};
         if (sscanf(body.c_str(), "%ld,%47s", &epoch, tzBuf) >= 1 && epoch > 1700000000) {
+            if (weatherReceivedTime < 1700000000LL && weatherReceivedTime > 0) {
+                weatherReceivedTime = (time_t)epoch;
+            }
             SetTimeFromBLE((time_t)epoch, String(tzBuf));
             UpdateScreen(true);
             server.send(200, "application/json", "{\"ok\":true}");
