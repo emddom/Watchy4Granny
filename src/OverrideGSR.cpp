@@ -601,9 +601,9 @@ void OverrideGSR::drawWatchFace() {
             }
             display.print(feelsStr);
 
-            // Icon / condition name (e.g. "Cloudy")
+            // Icon / condition name and code (e.g. "Overcast (3)")
             display.setCursor(5, 52);
-            display.print(getWeatherIconName(cond));
+            display.print(String(getWeatherIconName(cond)) + " (" + String(cond) + ")");
 
             double lat = getWeatherLatitude(true);
             if (lat == NOLOC || lat == 0.0) lat = getWeatherLatitude(false);

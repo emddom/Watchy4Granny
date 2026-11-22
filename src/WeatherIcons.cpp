@@ -235,29 +235,36 @@ const unsigned char* getTemperatureScaleIcon(bool Metric, bool Small) {
 
 const char* getWeatherIconName(uint16_t Condition) {
     switch (Condition) {
-        case 0: return "Sunny";
-        case 1: return "Mainly Sunny";
-        case 2: return "Partly Cloudy";
-        case 3: return "Cloudy";
+        case 0: return "Clear sky";
+        case 1: return "Mainly clear";
+        case 2: return "Partly cloudy";
+        case 3: return "Overcast";
         case 45: case 48: return "Fog";
-        case 51: case 53: case 55: return "Drizzle";
-        case 56: case 57: return "Freezing Drizzle";
-        case 61: case 63: case 65: return "Rain";
-        case 66: case 67: return "Freezing Rain";
-        case 71: case 73: case 75: return "Snow";
-        case 77: return "Snow Grains";
-        case 80: case 81: case 82: return "Rain Showers";
-        case 85: case 86: return "Snow Showers";
-        case 95: case 96: case 99: return "Thunderstorm";
+        case 51: return "Light drizzle";
+        case 53: return "Moderate drizzle";
+        case 55: return "Dense drizzle";
+        case 56: case 57: return "Freezing drizzle";
+        case 61: return "Slight rain";
+        case 63: return "Moderate rain";
+        case 65: return "Heavy rain";
+        case 66: case 67: return "Freezing rain";
+        case 71: return "Slight snowfall";
+        case 73: return "Moderate snowfall";
+        case 75: return "Heavy snowfall";
+        case 77: return "Snow grains";
+        case 80: case 81: case 82: return "Rain showers";
+        case 85: case 86: return "Snow showers";
+        case 95: return "Thunderstorm";
+        case 96: case 99: return "Thunderstorm / hail";
         default: break;
     }
-    if (Condition > 801 || Condition == 3) return "Cloudy";
-    if (Condition == 801 || Condition == 1 || Condition == 2) return "Partly Cloudy";
-    if (Condition == 800 || Condition == 0) return "Sunny";
+    if (Condition > 801 || Condition == 3) return "Overcast";
+    if (Condition == 801 || Condition == 1 || Condition == 2) return "Partly cloudy";
+    if (Condition == 800 || Condition == 0) return "Clear sky";
     if (Condition >= 700) return "Fog";
     if (Condition >= 600) return "Snow";
     if (Condition >= 500) return "Rain";
     if (Condition >= 300) return "Drizzle";
     if (Condition >= 200) return "Thunderstorm";
-    return "Cloudy";
+    return "Overcast";
 }
