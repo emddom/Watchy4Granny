@@ -423,14 +423,17 @@ fun WatchyDigitalTwinApp(bleManager: WatchyBleManager) {
                     }
                     Button(
                         onClick = {
-                            val lat = state.latitude.toDoubleOrNull()
-                            val lon = state.longitude.toDoubleOrNull()
-                            if (lat == null || lon == null) {
-                                bleManager.log("Enter or lookup city/GPS coordinates first.")
-                            } else {
-                                scope.launch {
-                                    fetchAndPushOpenMeteo(lat, lon, bleManager)
-                                }
+                            var lat = state.latitude.toDoubleOrNull()
+                            var lon = state.longitude.toDoubleOrNull()
+                            if (lat == null || lon == null || lat !in -90.0..90.0 || lon !in -180.0..180.0 || (lat == 0.0 && lon == 0.0) || lat == 720.0) {
+                                lat = 59.446008
+                                lon = 24.737912
+                                bleManager.updateCoordinatesInputs("59.446008", "24.737912")
+                            }
+                            val finalLat = lat
+                            val finalLon = lon
+                            scope.launch {
+                                fetchAndPushOpenMeteo(finalLat, finalLon, bleManager)
                             }
                         },
                         enabled = state.connected,

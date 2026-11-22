@@ -499,11 +499,17 @@ class WatchyBleManager(private val context: Context) {
         readCharBytes(charLoc)?.let { bytes ->
             val lStr = String(bytes, StandardCharsets.UTF_8)
             val parts = lStr.split(",")
-            if (parts.size >= 2 && _state.value.latitude.isEmpty()) {
-                _state.value = _state.value.copy(
-                    latitude = parts[0].trim(),
-                    longitude = parts[1].trim()
-                )
+            if (parts.size >= 2) {
+                val lt = parts[0].trim().toDoubleOrNull()
+                val ln = parts[1].trim().toDoubleOrNull()
+                if (lt != null && ln != null && lt in -90.0..90.0 && ln in -180.0..180.0 && (lt != 0.0 || ln != 0.0) && lt != 720.0) {
+                    if (_state.value.latitude.isEmpty() || _state.value.latitude == "720.000000" || _state.value.latitude == "0.000000") {
+                        _state.value = _state.value.copy(
+                            latitude = parts[0].trim(),
+                            longitude = parts[1].trim()
+                        )
+                    }
+                }
             }
         }
 
@@ -1063,7 +1069,7 @@ class WatchyBleManager(private val context: Context) {
     private fun autoFetchAndPushWeatherUnlocked() {
         var lat = _state.value.latitude.toDoubleOrNull()
         var lon = _state.value.longitude.toDoubleOrNull()
-        if (lat == null || lon == null) {
+        if (lat == null || lon == null || lat !in -90.0..90.0 || lon !in -180.0..180.0 || (lat == 0.0 && lon == 0.0) || lat == 720.0) {
             try {
                 val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
                 val loc = lm?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
@@ -1075,9 +1081,9 @@ class WatchyBleManager(private val context: Context) {
                 }
             } catch (_: Exception) {}
         }
-        if (lat == null || lon == null) {
-            lat = 60.1699
-            lon = 24.9384
+        if (lat == null || lon == null || lat !in -90.0..90.0 || lon !in -180.0..180.0 || (lat == 0.0 && lon == 0.0) || lat == 720.0) {
+            lat = 59.446008
+            lon = 24.737912
         }
         fetchAndPushWeather(lat, lon, auto = true)
     }

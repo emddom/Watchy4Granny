@@ -85,9 +85,15 @@ static String formatTwinTime() {
 }
 
 static String formatTwinLocation() {
-    if (!uiSM.watchy) return "0.000000,0.000000";
+    if (!uiSM.watchy) return "59.446008,24.737912";
     double lat = uiSM.watchy->getWeatherLatitude(true);
+    if (lat == NOLOC || lat == 0.0) lat = uiSM.watchy->getWeatherLatitude(false);
     double lon = uiSM.watchy->getWeatherLongitude(true);
+    if (lon == NOLOC || lon == 0.0) lon = uiSM.watchy->getWeatherLongitude(false);
+    if (!uiSM.watchy->filterGeo(lat, true) || !uiSM.watchy->filterGeo(lon, false) || lat == NOLOC || lon == NOLOC || (lat == 0.0 && lon == 0.0)) {
+        lat = 59.446008;
+        lon = 24.737912;
+    }
     char buf[40];
     snprintf(buf, sizeof(buf), "%.6f,%.6f", lat, lon);
     return String(buf);
@@ -565,21 +571,25 @@ void OverrideGSR::drawWatchFace() {
 
             display.setFont(&aAntiCorona12pt7b);
             if (bleWeatherPending) {
-                display.setCursor(15, 85);
+                display.setCursor(15, 80);
                 display.print(bleConnected ? "SYNCING BLE..." : "BLE WAITING...");
                 display.setFont(&aAntiCorona10pt7b);
-                display.setCursor(10, 120);
+                display.setCursor(10, 115);
                 display.print(bleConnected ? "Fetching on Twin" : "Open Digital Twin");
-                display.setCursor(10, 148);
-                display.print("or Press UP (SW3)");
+                display.setCursor(10, 140);
+                display.print("SW3: Re-request");
+                display.setCursor(10, 165);
+                display.print("SW2: Back / Exit");
             } else {
-                display.setCursor(20, 85);
+                display.setCursor(20, 80);
                 display.print("NO DATA YET");
                 display.setFont(&aAntiCorona10pt7b);
-                display.setCursor(15, 120);
+                display.setCursor(15, 115);
                 display.print("Open Twin App or");
-                display.setCursor(15, 148);
-                display.print("Press UP (SW3)");
+                display.setCursor(15, 140);
+                display.print("SW3: Fetch Weather");
+                display.setCursor(15, 165);
+                display.print("SW2: Back / Exit");
             }
         } else {
             uint16_t cond = GetWeatherID();
@@ -785,11 +795,13 @@ bool OverrideGSR::InsertHandlePressed(uint8_t SwitchNumber, bool &Haptic, bool &
           callingForHelp = false;
           helpRequested = false;
           wifiFailed = false;
+          uiSM.setState(&watchfaceState);
           Haptic = true;
           Refresh = true;
           return true; // We handled the button press
       }
       if (showingWeather && SwitchNumber == 3) { // Up / SW3 -> Refresh weather via BLE Twin
+          clearWeatherCompleteTime();
           requestBleWeather();
           Haptic = true;
           Refresh = true;
