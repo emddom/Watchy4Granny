@@ -613,17 +613,9 @@ void OverrideGSR::drawWatchFace() {
             display.setCursor(5, 75);
             String coordStr = "Lat/Lng: ";
             if (filterGeo(lat, true) && filterGeo(lon, false) && lat != NOLOC && lon != NOLOC) {
-                String c3 = "Lat/Lng: " + String(lat, 3) + " / " + String(lon, 3);
-                int16_t cx1, cy1;
-                uint16_t cw, ch;
-                display.getTextBounds(c3, 0, 0, &cx1, &cy1, &cw, &ch);
-                if (cw <= 190) {
-                    coordStr = c3;
-                } else {
-                    coordStr = "Lat/Lng: " + String(lat, 2) + " / " + String(lon, 2);
-                }
+                coordStr += String(lat, 3) + "/" + String(lon, 3);
             } else {
-                coordStr += "-- / --";
+                coordStr += "--/--";
             }
             display.print(coordStr);
 
