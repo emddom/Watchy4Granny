@@ -228,7 +228,6 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
                 uiSM.watchy->SetWeatherLocationFromBLE(lat, lon);
                 setCharString(pChar, formatTwinLocation());
                 bleLastAction = "Loc Updated";
-                uiSM.watchy->UpdateScreen();
             }
         } else if (uuid == TWIN_CHAR_WEAT_UUID) {
             float tempC = 0, feelsC = 0, windMs = 0;
@@ -245,7 +244,7 @@ class WatchyTwinCharCallbacks : public NimBLECharacteristicCallbacks {
                     setCharString(bleTwinStatusChar, formatTwinStatus());
                 }
                 bleLastAction = "Weather Sync";
-                uiSM.watchy->notifyWeatherComplete();
+                uiSM.watchy->clearWeatherCompleteTime();
                 uiSM.watchy->UpdateScreen(true);
             }
         }

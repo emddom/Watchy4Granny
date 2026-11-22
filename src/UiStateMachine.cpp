@@ -310,21 +310,15 @@ void WeatherState::enter(StateMachine* sm) {
     bleMirrorMode = false;
     if (usm->watchy) usm->watchy->clearWeatherCompleteTime();
     usm->watchy->CloseMenu();
-    usm->watchy->requestBleWeather();
+    if (usm->watchy && !usm->watchy->IsWeatherReady()) {
+        usm->watchy->requestBleWeather();
+    }
     usm->watchy->UpdateScreen(true);
 }
 
 void WeatherState::execute(StateMachine* sm) {
     UiStateMachine* usm = (UiStateMachine*)sm;
     usm->watchy->KeepDisplayAwake();
-
-    if (usm->watchy && usm->watchy->getWeatherCompleteTime() > 0) {
-        if (millis() - usm->watchy->getWeatherCompleteTime() >= 5000) {
-            usm->watchy->clearWeatherCompleteTime();
-            usm->setState(&watchfaceState);
-            return;
-        }
-    }
 }
 
 void WeatherState::exit(StateMachine* sm) {
